@@ -6,9 +6,9 @@ The quantum programming platform at the [Quantum Computer Architecture lab](http
 
 The QCA lab is affiliated to [QuTech](https://qutech.nl/) and the [Quantum & Computer Engineering department](https://www.tudelft.nl/en/eemcs/the-faculty/departments/quantum-computer-engineering/), as a collaboration between the [Faculty of Applied Sciences](https://www.tudelft.nl/en/tnw/) and the [Faculty of Electrical Engineering, Mathematics and Computer Science](https://www.tudelft.nl/en/eemcs/).
 
-I am a Ph.D. candidate at [QuTech](https://qutech.nl/person/aritra-sarkar/) and [QCA lab](https://www.tudelft.nl/en/eemcs/the-faculty/departments/quantum-computer-engineering/quantum-computer-architecture-lab/staff/aritra-sarkar/), working on Quantum Machine Learning for Genomics. Previously, I completed my M.Sc. in [Computer Engineering](https://www.tudelft.nl/en/education/programmes/masters/computer-engineering/msc-computer-engineering/) with thesis on [Quantum Algorithms for Pattern Matching on Genomic Sequences](https://repository.tudelft.nl/islandora/object/uuid%3A4257310d-6d8b-4f5a-9fda-00cf8e081f0e).
+I am a Ph.D. candidate at [QuTech](https://qutech.nl/person/aritra-sarkar/) and [QCA lab](https://www.tudelft.nl/en/eemcs/the-faculty/departments/quantum-computer-engineering/quantum-computer-architecture-lab/staff/aritra-sarkar/), working on **Quantum Machine Learning for Genomics**. Previously, I completed my M.Sc. in [Computer Engineering](https://www.tudelft.nl/en/education/programmes/masters/computer-engineering/msc-computer-engineering/) with thesis on [Quantum Algorithms for Pattern Matching on Genomic Sequences](https://repository.tudelft.nl/islandora/object/uuid%3A4257310d-6d8b-4f5a-9fda-00cf8e081f0e).
 
-The development of QML for Genomics is explained in the [QForce notebook](https://github.com/prince-ph0en1x/QWorld/blob/master/QWorld_QForce.ipynb). It is an accompanying resource to my Ph.D. thesis.
+The development of QML for Genomics is explained in the **QForce** notebooks. It is an accompanying resource to my Ph.D. thesis.
 
 ## Tutorials
 
