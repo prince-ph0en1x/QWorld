@@ -11,10 +11,11 @@ class QAOA(object):
 
     def __init__(self):
         self.minimizer = minimize
-        self.minimizer_kwargs = {'method':'Nelder-Mead', 'options':{'maxiter':40, 
+        self.minimizer_kwargs = {'method':'Nelder-Mead', 'options':{'maxiter':1, 
                                  'ftol':1.0e-2, 'xtol':1.0e-2, 'disp':True}}
         self.p_name = "test_output/qaoa_run.qasm"
-        
+        self.shots = 1#500 # should be some factor of number of qubits
+    
     def qaoa_run(self, wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas):
         n_qubits = len(wsopp[0][1])
         pqasm = []
@@ -30,31 +31,32 @@ class QAOA(object):
             ang_nos = np.hstack((ang_nos,aid))
             params.append(init_gammas[p])
             params.append(init_betas[p]) 
-        probs = np.zeros(2**n_qubits)
 
         def qasmify(params, wpp):
             prog = open(self.p_name,"w")
+            prog.write("# De-parameterized QAOA ansatz\n")
+            prog.write("version 1.0\n")
             prog.write("qubits "+str(n_qubits)+"\n")
             
             # De-parameterize pqasm
-            # a_id = 0
-            # a_ctr = 0
-            # c_ctr = 0
-            # for i in pqasm:
-            #      # 1-qubit parametric gates
-            #     if i[0] == 'rx' or i[0] == 'ry' or i[0] == 'rz':
-            #         prog.write(i[0]+" q"+str(i[1])+","+str(cfs[c_ctr]*params[a_id])+"\n")
-            #         c_ctr += 1
-            #         a_ctr += 1
-            #         if a_ctr >= ang_nos[a_id]:
-            #             a_id += 1
-            #             a_ctr = 0
-            #      # 1-qubit discrete gates
-            #     elif i[0] == 'x' or i[0] == 'y' or i[0] == 'z' or i[0] == 'h':
-            #         prog.write(i[0]+" q"+str(i[1])+"\n")
-            #      # 2-qubit discrete gates
-            #     else:
-            #         prog.write(i[0]+" q"+str(i[1][0])+",q"+str(i[1][1])+"\n")
+            a_id = 0
+            a_ctr = 0
+            c_ctr = 0
+            for i in pqasm:
+                # 1-qubit parametric gates
+                if i[0] == 'rx' or i[0] == 'ry' or i[0] == 'rz':
+                    prog.write(i[0]+" q["+str(i[1])+"],"+str(coeffs[c_ctr]*params[a_id])+"\n")
+                    c_ctr += 1
+                    a_ctr += 1
+                    if a_ctr >= ang_nos[a_id]:
+                        a_id += 1
+                        a_ctr = 0
+                # 1-qubit discrete gates
+                elif i[0] == 'x' or i[0] == 'y' or i[0] == 'z' or i[0] == 'h':
+                    prog.write(i[0]+" q["+str(i[1])+"]\n")
+                # 2-qubit discrete gates
+                else:
+                    prog.write(i[0]+" q["+str(i[1][0])+"],q["+str(i[1][1])+"]\n")
             
             # Pre-rotation for Z-basis measurement
             tgt = n_qubits-1
@@ -68,21 +70,54 @@ class QAOA(object):
 
             # Measure all
             for i in range(n_qubits):
-                prog.write("measure q"+str(i)+"\n")
+                prog.write("measure q["+str(i)+"]\n")
             prog.close()        
 
         def expectation(params):
+            E = 0
+            xsgn = [-1,1] # Try [1,-1] with ry +pi/2 in qasmify for pt == 'X'
+            zsgn = [1,-1]
+            isgn = [1,-1]
+            qx = qxelarator.QX()
+            probs = np.zeros(2**n_qubits)
+
             for wpp in wsopp:
-                print(wpp)
                 qasmify(params,wpp[1])
+                qx.set(self.p_name)
+
+                Epp = 0
+                p = np.zeros(2**n_qubits)
+                c = np.zeros(n_qubits,dtype=bool)
+                for i in range(self.shots):
+                    qx.execute(1)
+                    for i in range(n_qubits):
+                        c[i] = qx.get_measurement_outcome(i)
+                    idx = sum(v<<i for i, v in enumerate(c[::-1]))    
+                    p[idx] += 1/self.shots
+                
+                psgn = [1]
+                for pt in wpp[1]:
+                    if pt == "X":
+                        psgn = np.kron(psgn,xsgn)
+                    #elif pt == "Y":
+                    #    psgn = np.kron(psgn,xsgn) # TBD
+                    elif pt == "Z":
+                        psgn = np.kron(psgn,zsgn)
+                    else: # Identity
+                        psgn = np.kron(psgn,isgn)
+                for pn in range(2**n_qubits):
+                    Epp += psgn[pn]*p[pn]                
+                E += wpp[0]*Epp
+                
+                for pn in range(2**n_qubits):
+                    probs[pn] += wpp[0]*p[pn]
                 break
-
-            print("e")
-
+            return E
+               
         args = [expectation, params]
-        expectation(params)
-        # return self.minimizer(*args, **self.minimizer_kwargs)  
-        return "hi"
+        r = self.minimizer(*args, **self.minimizer_kwargs) 
+        print(r.status, r.fun, r.x)
+        return probs
 
 ######################################################
 
@@ -159,18 +194,11 @@ init_gammas = np.random.uniform(0, 2*np.pi, steps) # Initial angle parameters fo
 ######################################################
 
 qaoa_obj = QAOA()
-result = qaoa_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
-
-print(result)
-
-# print(r.status, r.fun, r.x)
+probs = qaoa_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
 
 # rdx = [5.21963138, 2.62196640, 4.52995014, 1.20937913] # from Forest (g1,b1,g2,b2)
 # rdx = [5.13465537, 1.39939047, 0.68591120, 3.22152587] # from last run (g1,b1,g2,b2)
 # rdx = r.x
 
-# probs = qaoa_obj.get_probs(n_qubits,ansatz,rdx,ang_nos,coeffs,steps)
-# print(probs)
-
-# plt.ylim((0,1))
-# plt.plot(probs)
+plt.ylim((0,1))
+plt.plot(probs)
