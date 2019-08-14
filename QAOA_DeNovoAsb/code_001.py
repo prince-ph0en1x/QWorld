@@ -4,17 +4,23 @@ import networkx as nx
 import numpy as np
 from scipy.optimize import minimize
 from qxelarator import qxelarator
+import matplotlib.pyplot as plt
 
 ######################################################
 
+track_opt = []
+track_optstep = 0
+track_probs = []
+
 class QAOA(object):
 
-    def __init__(self):
+    def __init__(self, maxiter, shots):
+        self.qx = qxelarator.QX()
         self.minimizer = minimize
-        self.minimizer_kwargs = {'method':'Nelder-Mead', 'options':{'maxiter':1, 
-                                 'ftol':1.0e-2, 'xtol':1.0e-2, 'disp':True}}
+        self.minimizer_kwargs = {'method':'Nelder-Mead', 'options':{'maxiter':maxiter, 
+                                 'ftol':1.0e-2, 'xtol':1.0e-2, 'disp':True, 'return_all':True}}
         self.p_name = "test_output/qaoa_run.qasm"
-        self.shots = 1#500 # should be some factor of number of qubits
+        self.shots = shots     
     
     def qaoa_run(self, wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas):
         n_qubits = len(wsopp[0][1])
@@ -78,20 +84,21 @@ class QAOA(object):
             xsgn = [-1,1] # Try [1,-1] with ry +pi/2 in qasmify for pt == 'X'
             zsgn = [1,-1]
             isgn = [1,-1]
-            qx = qxelarator.QX()
-            probs = np.zeros(2**n_qubits)
+            global track_probs
+            track_probs = np.zeros(2**n_qubits)
 
             for wpp in wsopp:
                 qasmify(params,wpp[1])
-                qx.set(self.p_name)
+                self.qx.set(self.p_name)
 
                 Epp = 0
                 p = np.zeros(2**n_qubits)
                 c = np.zeros(n_qubits,dtype=bool)
                 for i in range(self.shots):
-                    qx.execute(1)
+                    self.qx.execute()
+                    # self.qx.execute(1)
                     for i in range(n_qubits):
-                        c[i] = qx.get_measurement_outcome(i)
+                        c[i] = self.qx.get_measurement_outcome(i)
                     idx = sum(v<<i for i, v in enumerate(c[::-1]))    
                     p[idx] += 1/self.shots
                 
@@ -110,14 +117,24 @@ class QAOA(object):
                 E += wpp[0]*Epp
                 
                 for pn in range(2**n_qubits):
-                    probs[pn] += wpp[0]*p[pn]
-                break
+                    track_probs += wpp[0]*p[pn]
+                # break
             return E
+
+        def intermediate(cb):
+            global track_opt
+            global track_optstep
+            global track_probs
+            print("Step: ",track_optstep)
+            print("Current Optimal Parameters: ",cb)
+            print("Current Optimal Probabilities: ",track_probs)
+            track_optstep += 1
+            input("Press Enter to continue to step "+str(track_optstep))
+            track_opt.append([track_optstep, cb, track_probs])
                
         args = [expectation, params]
-        r = self.minimizer(*args, **self.minimizer_kwargs) 
-        print(r.status, r.fun, r.x)
-        return probs
+        r = self.minimizer(*args, callback=intermediate, **self.minimizer_kwargs) 
+        return r
 
 ######################################################
 
@@ -188,17 +205,27 @@ ansatz, cfs, aid = graph_to_pqasm(g,len(g.nodes()))
 
 steps = 2 # number of steps (QAOA blocks per iteration)
 
-init_betas = np.random.uniform(0, np.pi, steps) # Initial angle parameters for mixing/driving Hamiltonian
 init_gammas = np.random.uniform(0, 2*np.pi, steps) # Initial angle parameters for cost Hamiltonian
+init_betas = np.random.uniform(0, np.pi, steps) # Initial angle parameters for mixing/driving Hamiltonian
+
+# init_gammas = [5.13465537, 0.6859112]
+# init_betas = [1.39939047, 3.22152587] 
+# [10 20] >> 2 -0.45 [5.21087291 1.3272344  0.73896214 3.15357181] [-0.05  -0.025  0.025 -0.025  0.025 -0.05   0.025  0.075]
+# [20 30] >> 2 -0.46666666666666673 [5.2667262  1.50474491 0.65084962 3.20598018] [-0.01666667  0. 0.1 -0.05 -0.15 0.05 -0.03333333  0.1]
+
+init_gammas = [5.21963138, 4.52995014]
+init_betas = [2.62196640, 1.20937913] 
 
 ######################################################
 
-qaoa_obj = QAOA()
-probs = qaoa_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
+maxiter = 40
+shots = 300 # should be some factor of number of qubits to have the same precision
 
-# rdx = [5.21963138, 2.62196640, 4.52995014, 1.20937913] # from Forest (g1,b1,g2,b2)
-# rdx = [5.13465537, 1.39939047, 0.68591120, 3.22152587] # from last run (g1,b1,g2,b2)
-# rdx = r.x
-
+qaoa_obj = QAOA(maxiter, shots)
+res = qaoa_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
+print(res.status, res.fun, res.x)
+print(track_opt[-1])
+# %matplotlib inline
 plt.ylim((0,1))
-plt.plot(probs)
+plt.plot(track_opt[-1][2])
+plt.show()
