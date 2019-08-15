@@ -16,6 +16,10 @@ A set of Jupyter Notebooks for learning various quantum programming platforms. I
 
 Most of the materials are derived from various other official or community tutorials of the respective platforms; packaged as a cheatsheet to bootstrap a fast-paced learning. Advanced features are provided as links for exploring in a need-to-know basis.
 
+* ARC_Q5 - alpha-QAOA, iQPEA
+* ARC_Q6 - random Hamiltonian and Unitary generation for testing
+* ARC_Q7 - Max-Cut QAOA OpenQL
+
 These are in the **archives*.
 
 ### Ongoing

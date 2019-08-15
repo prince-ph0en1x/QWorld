@@ -28,9 +28,9 @@ def test_01():
 # test_01()
 
 def test_02():
-	p_name = "test_output/multi_run.qasm"
+	p_name = "test_output/multi_run_02.qasm" # Works with/without kernel encapsulation
 	qx = qxelarator.QX()
-	for p_loop in range(0,2):
+	for p_loop in range(0,6):
 		qx.set(p_name)
 		# qx.execute(1) # Doesn't work with get_state()
 		qx.execute() 

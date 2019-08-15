@@ -20,7 +20,8 @@ class QAOA(object):
         self.minimizer_kwargs = {'method':'Nelder-Mead', 'options':{'maxiter':maxiter, 
                                  'ftol':1.0e-2, 'xtol':1.0e-2, 'disp':True, 'return_all':True}}
         self.p_name = "test_output/qaoa_run.qasm"
-        self.shots = shots     
+        self.shots = shots 
+        self.expt = 0    
     
     def qaoa_run(self, wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas):
         n_qubits = len(wsopp[0][1])
@@ -83,6 +84,7 @@ class QAOA(object):
 
         def expectation(params):
             E = 0
+            self.expt = 0
             xsgn = [-1,1] # Try [1,-1] with ry +pi/2 in qasmify for pt == 'X'
             zsgn = [1,-1]
             isgn = [1,-1]
@@ -117,6 +119,7 @@ class QAOA(object):
                 for pn in range(2**n_qubits):
                     Epp += psgn[pn]*p[pn]                
                 E += wpp[0]*Epp
+                self.expt += E
                 
                 # for pn in range(2**n_qubits):
                 #     track_probs += wpp[0]*p[pn]
@@ -125,18 +128,23 @@ class QAOA(object):
                 # break
             return E
 
+        def expectation_isv(params):
+            # With get_state()
+            return expectation(params)
+
         def intermediate(cb):
             global track_opt
             global track_optstep
             global track_probs
             print("Step: ",track_optstep)
             print("Current Optimal Parameters: ",cb)
+            print("Current Expectation Value: ",self.expt)
             print("Current Optimal Probabilities: ",track_probs)
             track_optstep += 1
             # input("Press Enter to continue to step "+str(track_optstep))
             track_opt.append([track_optstep, cb, track_probs])
                
-        args = [expectation, params]
+        args = [expectation_isv, params]
         r = self.minimizer(*args, callback=intermediate, **self.minimizer_kwargs) 
         return r
 
@@ -212,13 +220,18 @@ steps = 2 # number of steps (QAOA blocks per iteration)
 init_gammas = np.random.uniform(0, 2*np.pi, steps) # Initial angle parameters for cost Hamiltonian
 init_betas = np.random.uniform(0, np.pi, steps) # Initial angle parameters for mixing/driving Hamiltonian
 
-init_gammas = [5.13465537, 0.6859112]
-init_betas = [1.39939047, 3.22152587]
+init_gammas = [0, 0]
+init_betas = [0, 0]
+
+# init_gammas = [5.13465537, 0.6859112]
+# init_betas = [1.39939047, 3.22152587]
 # 2 -0.12200000000000007 [5.13978292 1.32175648 0.71116758 3.28077758]
 # [39, array([5.13978292, 1.32175648, 0.71116758, 3.28077758]), array([0.078, 0.096, 0.238, 0.094, 0.11 , 0.228, 0.086, 0.07 ])]
 
 # init_gammas = [5.21963138, 4.52995014]
-# init_betas = [2.62196640, 1.20937913] 
+# init_betas = [2.62196640, 1.20937913]
+# 2 -0.11000000000000004 [5.21963138 2.75306472 4.52995014 1.20937913]
+# [39, array([5.21963138, 2.75306472, 4.52995014, 1.20937913]), array([0.006, 0.006, 0.474, 0.014, 0.006, 0.472, 0.012, 0.01 ])]
 
 ######################################################
 
@@ -231,5 +244,6 @@ print(res.status, res.fun, res.x)
 print(track_opt[-1])
 # %matplotlib inline
 plt.ylim((0,1))
-plt.plot(track_opt[-1][2])
+plt.plot(track_opt[0][2],'--')  # Initial
+plt.plot(track_opt[-1][2]) # Final
 plt.show()
