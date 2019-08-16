@@ -1,4 +1,4 @@
-# Check larger instances of Max-Cut
+# Check larger instances of Max-Cut with more steps and compressed wsopp
 # ..:$ python3 code_003.py 
 
 import networkx as nx
@@ -29,7 +29,7 @@ class QAOA(object):
         self.expt = 0    
     
     def qaoa_run(self, wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas):
-        n_qubits = len(wsopp[0][1])
+        n_qubits = len(list(wsopp.keys())[0])
         pqasm = []
         coeffs = []
         ang_nos = []
@@ -100,7 +100,7 @@ class QAOA(object):
             track_probs = np.zeros(2**n_qubits)
 
             for wpp in wsopp:
-                qasmify(params,wpp[1])
+                qasmify(params,wpp)
                 self.qx.set(self.p_name)
 
                 Epp = 0
@@ -115,7 +115,7 @@ class QAOA(object):
                     p[idx] += 1/self.shots
 
                 psgn = [1]
-                for pt in wpp[1]:
+                for pt in wpp:
                     if pt == "X":
                         psgn = np.kron(psgn,xsgn)
                     #elif pt == "Y":
@@ -126,10 +126,10 @@ class QAOA(object):
                         psgn = np.kron(psgn,isgn)
                 for pn in range(2**n_qubits):
                     Epp += psgn[pn]*p[pn]                
-                E += wpp[0]*Epp
+                E += wsopp[wpp]*Epp
                 self.expt += E
 
-                if wpp[1] == "I"*n_qubits:
+                if wpp == "I"*n_qubits:
                     track_probs = p
 
             return E
@@ -145,7 +145,7 @@ class QAOA(object):
             track_probs = np.zeros(2**n_qubits)
 
             for wpp in wsopp:
-                qasmify(params,wpp[1])
+                qasmify(params,wpp)
                 self.qx.set(self.p_name)
 
                 Epp = 0
@@ -157,7 +157,7 @@ class QAOA(object):
                     p[int(basis[2],2)] = float(basis[0])**2 + float(basis[1])**2 # Probability is square of modulus of complex amplitude
                 
                 psgn = [1]
-                for pt in wpp[1]:
+                for pt in wpp:
                     if pt == "X":
                         psgn = np.kron(psgn,xsgn)
                     #elif pt == "Y":
@@ -168,10 +168,10 @@ class QAOA(object):
                         psgn = np.kron(psgn,isgn)
                 for pn in range(2**n_qubits):
                     Epp += psgn[pn]*p[pn]                
-                E += wpp[0]*Epp
+                E += wsopp[wpp]*Epp
                 self.expt += E
 
-                if wpp[1] == "I"*n_qubits:
+                if wpp == "I"*n_qubits:
                     track_probs = p
                
             return E
@@ -201,8 +201,9 @@ class QAOA(object):
 #     4--3 
 
 # 43210
-# 01010
-# 10100
+# 01010 - 10101
+# 10100 - 01011
+# 10, 11, 20, 21
 
 def graph_problem():
     g = nx.Graph()
@@ -221,20 +222,25 @@ print(g)
 ######################################################
 
 def graph_to_wsopp(g, n_qubits):
-    wsopp = []
+    wsopp = {}
     Iall = "I"*n_qubits
     for i,j in g.edges():
         # 0.5*Z_i*Z_j
         sopp = Iall[:n_qubits-1-i]+"Z"+Iall[n_qubits-1-i+1:]
         sopp = sopp[:n_qubits-1-j]+"Z"+sopp[n_qubits-1-j+1:]
-        wsopp.append((0.5,sopp))
+        if sopp in wsopp:
+            wsopp[sopp] = wsopp[sopp] + 0.5
+        else:
+            wsopp[sopp] = 0.5
         # -0.5*I_0
-        wsopp.append((-0.5,Iall))
+        if Iall in wsopp:
+            wsopp[Iall] = wsopp[Iall] - 0.5
+        else:
+            wsopp[Iall] = -0.5
     return wsopp
     
 wsopp = graph_to_wsopp(g, len(g.nodes()))
-# [(0.5, 'IZZ'), (-0.5, 'III'), (0.5, 'ZZI'), (-0.5, 'III')]
-print(wsopp)
+# {'IIIZZ': 0.5, 'IIIII': -3.0, 'ZIIIZ': 0.5, 'IIZZI': 0.5, 'ZIIZI': 0.5, 'ZZIII': 0.5, 'IZZII': 0.5}
 
 ######################################################
 
@@ -286,6 +292,22 @@ init_betas = np.random.uniform(0, np.pi, steps)
 # init_gammas = [0, 0]
 # init_betas = [0, 0]
 
+# Optimization terminated successfully.
+#          Current function value: 0.000000
+#          Iterations: 19
+#          Function evaluations: 189
+# 0 0.0 [0.76556019 0.65266102 2.31622719 0.24012393 1.19432261 0.70770831
+#  2.87653068 2.75631259]
+# [18, array([0.76556019, 0.65266102, 2.31622719, 0.24012393, 1.19432261,
+#        0.70770831, 2.87653068, 2.75631259]), array([2.35625479e-02, 4.96280102e-02, 4.91347731e-02, 1.26990289e-02,
+#        4.59621422e-05, 2.46748704e-02, 3.01462133e-02, 3.01462133e-02,
+#        4.59621422e-05, 2.46748704e-02, 7.09195465e-02, 7.09195465e-02,
+#        4.67071649e-03, 4.68969246e-02, 1.26990289e-02, 4.91347731e-02,
+#        4.91347731e-02, 1.26990289e-02, 4.68969246e-02, 4.67071649e-03,
+#        7.09195465e-02, 7.09195465e-02, 2.46748704e-02, 4.59621422e-05,
+#        3.01462133e-02, 3.01462133e-02, 2.46748704e-02, 4.59621422e-05,
+#        1.26990289e-02, 4.91347731e-02, 4.96280102e-02, 2.35625479e-02])]
+
 ######################################################
 
 maxiter = 20
@@ -295,6 +317,7 @@ qaoa_obj = QAOA(maxiter, shots)
 res = qaoa_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
 print(res.status, res.fun, res.x)
 print(track_opt[-1])
+print(sum(track_opt[0][2]))
 # %matplotlib inline
 plt.ylim((0,1))
 plt.plot(track_opt[0][2],'--') # Initial
