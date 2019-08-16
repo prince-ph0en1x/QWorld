@@ -40,7 +40,6 @@ def test_02():
 # test_02()
 
 import re
-import math
 
 def test_03():
 	p_name = "test_output/multi_run_02.qasm" # Works with/without kernel encapsulation

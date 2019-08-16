@@ -5,8 +5,12 @@ import numpy as np
 from scipy.optimize import minimize
 from qxelarator import qxelarator
 import matplotlib.pyplot as plt
+import re
 
 ######################################################
+
+ptrn = re.compile('\(([+-]\d+.*\d*),([+-]\d+.*\d*)\)\s[|]([0-1]*)>')
+isv_prob = True
 
 track_opt = []
 track_optstep = 0
@@ -40,6 +44,7 @@ class QAOA(object):
             params.append(init_betas[p]) 
 
         def qasmify(params, wpp):
+            global isv_prob
             prog = open(self.p_name,"w")
             prog.write("# De-parameterized QAOA ansatz\n")
             prog.write("version 1.0\n")
@@ -78,8 +83,10 @@ class QAOA(object):
                 tgt -= 1
 
             # Measure all
-            for i in range(n_qubits):
-                prog.write("measure q["+str(i)+"]\n")
+            if not isv_prob:
+                for i in range(n_qubits):
+                    prog.write("measure q["+str(i)+"]\n")
+
             prog.close()        
 
         def expectation(params):
@@ -105,6 +112,48 @@ class QAOA(object):
                         c[i] = self.qx.get_measurement_outcome(i)
                     idx = sum(v<<i for i, v in enumerate(c[::-1]))    
                     p[idx] += 1/self.shots
+
+                psgn = [1]
+                for pt in wpp[1]:
+                    if pt == "X":
+                        psgn = np.kron(psgn,xsgn)
+                    #elif pt == "Y":
+                    #    psgn = np.kron(psgn,xsgn) # TBD
+                    elif pt == "Z":
+                        psgn = np.kron(psgn,zsgn)
+                    else: # Identity
+                        psgn = np.kron(psgn,isgn)
+                for pn in range(2**n_qubits):
+                    Epp += psgn[pn]*p[pn]                
+                E += wpp[0]*Epp
+                self.expt += E
+
+                if wpp[1] == "I"*n_qubits:
+                    track_probs = p
+
+            return E
+
+        def expectation_isv(params):
+            global ptrn
+            E = 0
+            self.expt = 0
+            xsgn = [-1,1] # Try [1,-1] with ry +pi/2 in qasmify for pt == 'X'
+            zsgn = [1,-1]
+            isgn = [1,-1]
+            global track_probs
+            track_probs = np.zeros(2**n_qubits)
+
+            for wpp in wsopp:
+                qasmify(params,wpp[1])
+                self.qx.set(self.p_name)
+
+                Epp = 0
+                p = np.zeros(2**n_qubits)
+                self.qx.execute() 
+                isv_str = self.qx.get_state()
+                isv = re.findall(ptrn,isv_str)
+                for basis in iter(isv):
+                    p[int(basis[2],2)] = float(basis[0])**2 + float(basis[1])**2 # Probability is square of modulus of complex amplitude
                 
                 psgn = [1]
                 for pt in wpp[1]:
@@ -120,17 +169,11 @@ class QAOA(object):
                     Epp += psgn[pn]*p[pn]                
                 E += wpp[0]*Epp
                 self.expt += E
-                
-                # for pn in range(2**n_qubits):
-                #     track_probs += wpp[0]*p[pn]
-                if wpp[1] == 'III':
-                    track_probs = p
-                # break
-            return E
 
-        def expectation_isv(params):
-            # With get_state()
-            return expectation(params)
+                if wpp[1] == "I"*n_qubits:
+                    track_probs = p
+               
+            return E
 
         def intermediate(cb):
             global track_opt
@@ -217,21 +260,22 @@ ansatz, cfs, aid = graph_to_pqasm(g,len(g.nodes()))
 
 steps = 2 # number of steps (QAOA blocks per iteration)
 
-init_gammas = np.random.uniform(0, 2*np.pi, steps) # Initial angle parameters for cost Hamiltonian
-init_betas = np.random.uniform(0, np.pi, steps) # Initial angle parameters for mixing/driving Hamiltonian
+# Initial angle parameters for Hamiltonians cost (gammas) and mixing/driving (betas)
 
-init_gammas = [0, 0]
-init_betas = [0, 0]
+init_gammas = np.random.uniform(0, 2*np.pi, steps) 
+init_betas = np.random.uniform(0, np.pi, steps)
+
+# init_gammas = [0, 0]
+# init_betas = [0, 0]
 
 # init_gammas = [5.13465537, 0.6859112]
 # init_betas = [1.39939047, 3.22152587]
 # 2 -0.12200000000000007 [5.13978292 1.32175648 0.71116758 3.28077758]
 # [39, array([5.13978292, 1.32175648, 0.71116758, 3.28077758]), array([0.078, 0.096, 0.238, 0.094, 0.11 , 0.228, 0.086, 0.07 ])]
 
+# Optimal
 # init_gammas = [5.21963138, 4.52995014]
 # init_betas = [2.62196640, 1.20937913]
-# 2 -0.11000000000000004 [5.21963138 2.75306472 4.52995014 1.20937913]
-# [39, array([5.21963138, 2.75306472, 4.52995014, 1.20937913]), array([0.006, 0.006, 0.474, 0.014, 0.006, 0.472, 0.012, 0.01 ])]
 
 ######################################################
 
