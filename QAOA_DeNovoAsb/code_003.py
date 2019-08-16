@@ -1,5 +1,5 @@
-# Expectation value calculation using get_state()
-# ..:$ python3 code_002.py 
+# Check larger instances of Max-Cut
+# ..:$ python3 code_003.py 
 
 import networkx as nx
 import numpy as np
@@ -23,7 +23,7 @@ class QAOA(object):
         self.qx = qxelarator.QX()
         self.minimizer = minimize
         self.minimizer_kwargs = {'method':'Nelder-Mead', 'options':{'maxiter':maxiter, 
-                                 'ftol':1.0e-2, 'xtol':1.0e-2, 'disp':True, 'return_all':True}}
+                                 'ftol':1.0e-6, 'xtol':1.0e-6, 'disp':True, 'return_all':True}}
         self.p_name = "test_output/qaoa_run.qasm"
         self.shots = shots 
         self.expt = 0    
@@ -181,9 +181,9 @@ class QAOA(object):
             global track_optstep
             global track_probs
             print("Step: ",track_optstep)
-            print("Current Optimal Parameters: ",cb)
-            print("Current Expectation Value: ",self.expt)
-            print("Current Optimal Probabilities: ",track_probs)
+            # print("Current Optimal Parameters: ",cb)
+            # print("Current Expectation Value: ",self.expt)
+            # print("Current Optimal Probabilities: ",track_probs)
             track_optstep += 1
             # input("Press Enter to continue to step "+str(track_optstep))
             track_opt.append([track_optstep, cb, track_probs])
@@ -194,13 +194,29 @@ class QAOA(object):
 
 ######################################################
 
+#     1--2
+#    /|  |
+#   0 |  |
+#    \|  |
+#     4--3 
+
+# 43210
+# 01010
+# 10100
+
 def graph_problem():
     g = nx.Graph()
     g.add_edge(0,1)
+    g.add_edge(0,4)
     g.add_edge(1,2)
+    g.add_edge(1,4)
+    g.add_edge(2,3)
+    g.add_edge(3,4)
     return g
 
-g = graph_problem() # Barbell graph [0-1-2]
+g = graph_problem()
+
+print(g)
 
 ######################################################
 
@@ -218,6 +234,7 @@ def graph_to_wsopp(g, n_qubits):
     
 wsopp = graph_to_wsopp(g, len(g.nodes()))
 # [(0.5, 'IZZ'), (-0.5, 'III'), (0.5, 'ZZI'), (-0.5, 'III')]
+print(wsopp)
 
 ######################################################
 
@@ -259,7 +276,7 @@ def graph_to_pqasm(g,n_qubits):
 
 ansatz, cfs, aid = graph_to_pqasm(g,len(g.nodes()))
 
-steps = 2 # number of steps (QAOA blocks per iteration)
+steps = 4 # number of steps (QAOA blocks per iteration)
 
 # Initial angle parameters for Hamiltonians cost (gammas) and mixing/driving (betas)
 
@@ -269,18 +286,9 @@ init_betas = np.random.uniform(0, np.pi, steps)
 # init_gammas = [0, 0]
 # init_betas = [0, 0]
 
-# init_gammas = [5.13465537, 0.6859112]
-# init_betas = [1.39939047, 3.22152587]
-# 2 -0.12200000000000007 [5.13978292 1.32175648 0.71116758 3.28077758]
-# [39, array([5.13978292, 1.32175648, 0.71116758, 3.28077758]), array([0.078, 0.096, 0.238, 0.094, 0.11 , 0.228, 0.086, 0.07 ])]
-
-# Optimal
-# init_gammas = [5.21963138, 4.52995014]
-# init_betas = [2.62196640, 1.20937913]
-
 ######################################################
 
-maxiter = 40
+maxiter = 20
 shots = 500 # should be some factor of number of qubits to have the same precision
 
 qaoa_obj = QAOA(maxiter, shots)
