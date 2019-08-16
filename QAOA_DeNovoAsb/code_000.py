@@ -37,4 +37,27 @@ def test_02():
 		isv = qx.get_state()
 		print(isv)
 
-test_02()
+# test_02()
+
+import re
+import math
+
+def test_03():
+	p_name = "test_output/multi_run_02.qasm" # Works with/without kernel encapsulation
+	n_qubits = 3
+
+	ptrn = re.compile('\(([+-]\d+.*\d*),([+-]\d+.*\d*)\)\s[|]([0-1]*)>')
+
+	qx = qxelarator.QX()
+	isv_p = []
+	for p_loop in range(0,2):
+		isv_p = np.zeros(2**n_qubits)
+		qx.set(p_name)
+		# qx.execute(1) # Doesn't work with get_state()
+		qx.execute() 
+		isv = re.findall(ptrn,qx.get_state())
+		for basis in iter(isv):
+		 	isv_p[int(basis[2],2)] = float(basis[0])**2 + float(basis[1])**2 # Probability is square of modulus of complex amplitude
+		print(isv_p)
+
+test_03()
