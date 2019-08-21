@@ -226,10 +226,11 @@ g = graph_problem()
 Converts the TSP graph to wsopp for problem Hamiltonian for QUBO/Ising model
 """
 
-def graph_to_wsopp_tsp(g, n_cities):
+def graph_to_wsopp_tsp(g):
     # for i in g.edges():
     #     print(i,g.edges[i]['weight'])
     wsopp = {}
+    n_cities = len(g.nodes())
     n_timeslots = n_cities
     n_qubits = n_cities*n_timeslots # MSQ = C0T0, LSQ = C3T3
     Iall = "I"*n_qubits
@@ -335,57 +336,126 @@ def graph_to_wsopp_tsp(g, n_cities):
        
     return shift, wsopp
 
-shift, wsopp = graph_to_wsopp_tsp(g, len(g.nodes()))
+shift, wsopp = graph_to_wsopp_tsp(g)
 
-print(shift,len(wsopp))
+# print(shift,len(wsopp))
 # for i in wsopp:
 #     print(i,wsopp[i]) 
-
-######################################################
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ######################################################
 
 initstate = []
 for i in range(0,len(g.nodes())): # Reference state preparation
     initstate.append(("h",i))
+
+# Refer: Rigetti --> Forest --> PyQuil --> paulis.py --> exponential_map()
+def ansatz_pqasm_tsp(wsopp):
+    ansatz = [] # qasm tokens
+    coeffs = [] # Weights for the angle parameter for each gate
+    angles = [0,0] # Counts for [cost,mixing] Hamiltonian angles
+    
+    for i in wsopp:
+    	n_qubits = len(i)
+    	break
+    
+    # for i,j in g.edges():
+    #     # 0.5*Z_i*Z_j
+    #     ansatz.append(("cnot",[i,j]))
+    #     ansatz.append(("rz",j))
+    #     coeffs.append(2*0.5)
+    #     angles[0] += 1 # gamma: cost Hamiltonian
+    #     ansatz.append(("cnot",[i,j]))
+    #     # -0.5*I_0
+    #     ansatz.append(("x",0))
+    #     ansatz.append(("rz",0))
+    #     coeffs.append(-1*-0.5)
+    #     angles[0] += 1 # gamma: cost Hamiltonian
+    #     ansatz.append(("x",0))
+    #     ansatz.append(("rz",0))
+    #     coeffs.append(-1*-0.5)
+    #     angles[0] += 1 # gamma: cost Hamiltonian
+    
+    # Mixing Hamiltonian
+    
+    # +I_all (doesn't matter which qubit)
+    ansatz.append(("x",0))
+    ansatz.append(("rz",0)) # Phase(coeff) = RZ(coeff) * exp(i*coeff/2)
+    coeffs.append(-1*+1)
+    angles[1] += 1 # beta 
+    ansatz.append(("x",0))
+    ansatz.append(("rz",0)) # Phase(coeff) = RZ(coeff) * exp(i*coeff/2)
+    coeffs.append(-1*+1)
+    angles[1] += 1 # beta
+    
+    # -X_i
+    for i in range(n_qubits):
+        ansatz.append(("h",i))
+        ansatz.append(("rz",i))
+        coeffs.append(+2*-1)
+        angles[1] += 1 # beta
+        ansatz.append(("h",i))
+
+    return ansatz, coeffs, angles
+
+ansatz, cfs, aid = ansatz_pqasm_tsp(wsopp)
+print(ansatz)
+
+steps = 2 # Number of steps (QAOA blocks per iteration)
+
+# Initial angle parameters for Hamiltonians cost (gammas) and mixing/driving (betas)
+init_gammas = np.random.uniform(0, 2*np.pi, steps) 
+init_betas = np.random.uniform(0, 2*np.pi, steps)
+
+
+# from pyquil.paulis import *
+# # from pyquil.gates import *
+# ps = sI(2)
+# ps = 0.2*(sI(0) - sZ(1)*sZ(2))	
+# # for i in range(0,4):
+# # 	ps -= sX(i)
+# print(ps)
+
+# for pt in ps: # pauli term in pauli sum
+# 	print("\nPauli Term: ",pt)
+# 	empt = exponential_map(pt)
+# 	for gs in empt(1.222):
+# 		print(gs)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+######################################################
+
+
 
 def graph_to_pqasm(g,n_qubits):
     coeffs = [] # Weights for the angle parameter for each gate
