@@ -181,11 +181,11 @@ class QAOA(object):
             global track_optstep
             global track_probs
             print("Step: ",track_optstep)
-            # print("Current Optimal Parameters: ",cb)
-            # print("Current Expectation Value: ",self.expt)
-            # print("Current Optimal Probabilities: ",track_probs)
+            print("Current Optimal Parameters: ",cb)
+            print("Current Expectation Value: ",self.expt)
+            print("Current Optimal Probabilities: ",track_probs)
             track_optstep += 1
-            # input("Press Enter to continue to step "+str(track_optstep))
+            input("Press Enter to continue to step "+str(track_optstep))
             track_opt.append([track_optstep, cb, track_probs])
                
         args = [expectation_isv, params]
@@ -282,7 +282,7 @@ def graph_to_pqasm(g,n_qubits):
 
 ansatz, cfs, aid = graph_to_pqasm(g,len(g.nodes()))
 
-steps = 4 # number of steps (QAOA blocks per iteration)
+steps = 2 # number of steps (QAOA blocks per iteration)
 
 # Initial angle parameters for Hamiltonians cost (gammas) and mixing/driving (betas)
 
@@ -310,8 +310,8 @@ init_betas = np.random.uniform(0, np.pi, steps)
 
 ######################################################
 
-maxiter = 20
-shots = 500 # should be some factor of number of qubits to have the same precision
+maxiter = 5#20
+shots = 100 # should be some factor of number of qubits to have the same precision
 
 qaoa_obj = QAOA(maxiter, shots)
 res = qaoa_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)

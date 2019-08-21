@@ -2,6 +2,7 @@
 # ..:$ python3 code_004.py 
 
 import networkx as nx
+import math
 import numpy as np
 from scipy.optimize import minimize
 from qxelarator import qxelarator
@@ -10,8 +11,9 @@ import re
 
 ######################################################
 
-ptrn = re.compile('\(([+-]\d+.*\d*),([+-]\d+.*\d*)\)\s[|]([0-1]*)>')
-isv_prob = True
+ptrn = re.compile('\(([+-]\d+.*\d*),([+-]\d+.*\d*)\)\s[|]([0-1]*)>') # Regular expression to extract the amplitudes from the string returned by get_state()
+isv_prob = True # True if the internal state vector is accessed using get_state() instead of measurement aggregates over multiple shots
+shots = 500 # If isv_prob is false, the experiment is run over multple shots for measurement aggregate. Should be some factor of number of qubits to have the same precision
 
 track_opt = []
 track_optstep = 0
@@ -19,13 +21,12 @@ track_probs = []
 
 class QAOA(object):
 
-    def __init__(self, maxiter, shots):
+    def __init__(self, maxiter):
         self.qx = qxelarator.QX()
         self.minimizer = minimize
         self.minimizer_kwargs = {'method':'Nelder-Mead', 'options':{'maxiter':maxiter, 
                                  'ftol':1.0e-6, 'xtol':1.0e-6, 'disp':True, 'return_all':True}}
         self.p_name = "test_output/qaoa_run.qasm"
-        self.shots = shots 
         self.expt = 0    
     
     def qaoa_run(self, wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas):
@@ -106,13 +107,13 @@ class QAOA(object):
                 Epp = 0
                 p = np.zeros(2**n_qubits)
                 c = np.zeros(n_qubits,dtype=bool)
-                for i in range(self.shots):
+                for i in range(shots):
                     self.qx.execute()
                     # self.qx.execute(1)
                     for i in range(n_qubits):
                         c[i] = self.qx.get_measurement_outcome(i)
                     idx = sum(v<<i for i, v in enumerate(c[::-1]))    
-                    p[idx] += 1/self.shots
+                    p[idx] += 1/shots
 
                 psgn = [1]
                 for pt in wpp:
@@ -194,53 +195,191 @@ class QAOA(object):
 
 ######################################################
 
-#     1--2
-#    /|  |
-#   0 |  |
-#    \|  |
-#     4--3 
+"""
+Defines the city graph for TSP
+"""
 
-# 43210
-# 01010 - 10101
-# 10100 - 01011
-# 10, 11, 20, 21
+# 4 cities undirected complete-graph in unit square lattice
+
+#   0----1
+#   |\  /|
+#   | \/ |
+#   | /\ |
+#   |/  \|
+#   3----2
 
 def graph_problem():
     g = nx.Graph()
-    g.add_edge(0,1)
-    g.add_edge(0,4)
-    g.add_edge(1,2)
-    g.add_edge(1,4)
-    g.add_edge(2,3)
-    g.add_edge(3,4)
+    g.add_edge(0,1,weight=1)
+    g.add_edge(0,2,weight=math.sqrt(2))
+    g.add_edge(0,3,weight=1)
+    g.add_edge(1,2,weight=1)
+    g.add_edge(1,3,weight=math.sqrt(2))
+    g.add_edge(2,3,weight=1)
     return g
 
 g = graph_problem()
 
-print(g)
+######################################################
+
+"""
+Converts the TSP graph to wsopp for problem Hamiltonian for QUBO/Ising model
+"""
+
+def graph_to_wsopp_tsp(g, n_cities):
+    # for i in g.edges():
+    #     print(i,g.edges[i]['weight'])
+    wsopp = {}
+    n_timeslots = n_cities
+    n_qubits = n_cities*n_timeslots # MSQ = C0T0, LSQ = C3T3
+    Iall = "I"*n_qubits
+    
+    penalty = 1e5 # How to set this?
+    shift = 2*penalty*n_cities   # What is this?
+    
+    # penalty: CiTp --> CiTp
+    for i in range(n_cities):
+        for p in range(n_timeslots):
+            # zp = np.zeros(n_qubits, dtype=np.bool)
+            # zp[i * n_cities + p] = True
+            # print(zp)
+            shift += -penalty
+
+            sopp = Iall[:(i*n_cities+p)]+"Z"+Iall[(i*n_cities+p)+1:]
+            if sopp in wsopp:
+                wsopp[sopp] = wsopp[sopp] + penalty
+            else:
+                wsopp[sopp] = penalty
+
+    # -0.5*penalty: CiTp --> CiTp
+    # -0.5*penalty: CjTp --> CjTp
+    # +0.5*penalty: CiTp --> CjTp
+    for p in range(n_timeslots):
+        for i in range(n_cities):
+            for j in range(i):
+                shift += penalty / 2
+
+                sopp = Iall[:(i*n_cities+p)]+"Z"+Iall[(i*n_cities+p)+1:]
+                if sopp in wsopp:
+                    wsopp[sopp] = wsopp[sopp] + (-penalty/2)
+                else:
+                    wsopp[sopp] = (-penalty/2)
+
+                sopp = Iall[:(j*n_cities+p)]+"Z"+Iall[(j*n_cities+p)+1:]
+                if sopp in wsopp:
+                    wsopp[sopp] = wsopp[sopp] + (-penalty/2)
+                else:
+                    wsopp[sopp] = (-penalty/2)
+
+                sopp = sopp[:(i*n_cities+p)]+"Z"+sopp[(i*n_cities+p)+1:] # Both i,j
+                if sopp in wsopp:
+                    wsopp[sopp] = wsopp[sopp] + (penalty/2)
+                else:
+                    wsopp[sopp] = (penalty/2)    
+
+    # -0.5*penalty: CiTp --> CiTp
+    # -0.5*penalty: CiTq --> CiTq
+    # +0.5*penalty: CiTp --> CiTq
+    for i in range(n_cities):
+        for p in range(n_timeslots):
+            for q in range(p):
+                shift += penalty / 2
+
+                sopp = Iall[:(i*n_cities+p)]+"Z"+Iall[(i*n_cities+p)+1:]
+                if sopp in wsopp:
+                    wsopp[sopp] = wsopp[sopp] + (-penalty/2)
+                else:
+                    wsopp[sopp] = (-penalty/2)
+
+                sopp = Iall[:(i*n_cities+q)]+"Z"+Iall[(i*n_cities+q)+1:]
+                if sopp in wsopp:
+                    wsopp[sopp] = wsopp[sopp] + (-penalty/2)
+                else:
+                    wsopp[sopp] = (-penalty/2)
+
+                sopp = sopp[:(i*n_cities+p)]+"Z"+sopp[(i*n_cities+p)+1:] # Both p,q
+                if sopp in wsopp:
+                    wsopp[sopp] = wsopp[sopp] + (penalty/2)
+                else:
+                    wsopp[sopp] = (penalty/2)
+
+    # -0.25*dist(i,j): CiTp --> CiTp
+    # -0.25*dist(i,j): CjTq --> CjTq
+    # +0.25*dist(i,j): CiTp --> CjTq
+    for i in range(n_cities):
+        for j in range(n_cities):
+            if i == j:
+                continue
+            for p in range(n_timeslots):
+                q = (p + 1) % n_timeslots
+                dist = g.get_edge_data(i,j)['weight']
+                shift += dist / 4
+
+                sopp = Iall[:(i*n_cities+p)]+"Z"+Iall[(i*n_cities+p)+1:]
+                if sopp in wsopp:
+                    wsopp[sopp] = wsopp[sopp] + (-dist/4)
+                else:
+                    wsopp[sopp] = (-dist/4)
+
+                sopp = Iall[:(j*n_cities+q)]+"Z"+Iall[(j*n_cities+q)+1:]
+                if sopp in wsopp:
+                    wsopp[sopp] = wsopp[sopp] + (-dist/4)
+                else:
+                    wsopp[sopp] = (-dist/4)
+
+                sopp = sopp[:(i*n_cities+p)]+"Z"+sopp[(i*n_cities+p)+1:] # Both ip,jq
+                if sopp in wsopp:
+                    wsopp[sopp] = wsopp[sopp] + (dist/4)
+                else:
+                    wsopp[sopp] = (dist/4)
+       
+    return shift, wsopp
+
+shift, wsopp = graph_to_wsopp_tsp(g, len(g.nodes()))
+
+print(shift,len(wsopp))
+# for i in wsopp:
+#     print(i,wsopp[i]) 
 
 ######################################################
 
-def graph_to_wsopp(g, n_qubits):
-    wsopp = {}
-    Iall = "I"*n_qubits
-    for i,j in g.edges():
-        # 0.5*Z_i*Z_j
-        sopp = Iall[:n_qubits-1-i]+"Z"+Iall[n_qubits-1-i+1:]
-        sopp = sopp[:n_qubits-1-j]+"Z"+sopp[n_qubits-1-j+1:]
-        if sopp in wsopp:
-            wsopp[sopp] = wsopp[sopp] + 0.5
-        else:
-            wsopp[sopp] = 0.5
-        # -0.5*I_0
-        if Iall in wsopp:
-            wsopp[Iall] = wsopp[Iall] - 0.5
-        else:
-            wsopp[Iall] = -0.5
-    return wsopp
-    
-wsopp = graph_to_wsopp(g, len(g.nodes()))
-# {'IIIZZ': 0.5, 'IIIII': -3.0, 'ZIIIZ': 0.5, 'IIZZI': 0.5, 'ZIIZI': 0.5, 'ZZIII': 0.5, 'IZZII': 0.5}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ######################################################
 
@@ -310,179 +449,76 @@ init_betas = np.random.uniform(0, np.pi, steps)
 
 ######################################################
 
-maxiter = 20
-shots = 500 # should be some factor of number of qubits to have the same precision
+# maxiter = 20
 
-qaoa_obj = QAOA(maxiter, shots)
-res = qaoa_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
-print(res.status, res.fun, res.x)
-print(track_opt[-1])
-print(sum(track_opt[0][2]))
-# %matplotlib inline
-plt.ylim((0,1))
-plt.plot(track_opt[0][2],'--') # Initial
-plt.plot(track_opt[-1][2]) # Final
-plt.show()
+# qaoa_obj = QAOA(maxiter, shots)
+# res = qaoa_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
+# print(res.status, res.fun, res.x)
+# print(track_opt[-1])
+# print(sum(track_opt[0][2]))
+# # %matplotlib inline
+# plt.ylim((0,1))
+# plt.plot(track_opt[0][2],'--') # Initial
+# plt.plot(track_opt[-1][2]) # Final
+# plt.show()
 
 ######################################################
 
 
-from scipy import sparse
 
-def paulis_to_matrix(pl):
-    """
-    Convert paulis to matrix, and save it in internal property directly.
-    If all paulis are Z or I (identity), convert to dia_matrix.
-    """
-    p = pl[0]
-    hamiltonian = p[0] * to_spmatrix(p[1])
-    for idx in range(1, len(pl)):
-        p = pl[idx]
-        hamiltonian += p[0] * to_spmatrix(p[1])
-    return hamiltonian
 
-def to_spmatrix(p):
-    """
-    Convert Pauli to a sparse matrix representation (CSR format).
-    Order is q_{n-1} .... q_0, i.e., $P_{n-1} \otimes ... P_0$
-    Returns:
-        scipy.sparse.csr_matrix: a sparse matrix with CSR format that
-        represnets the pauli.
-    """
-    mat = sparse.coo_matrix(1)
-    for z in p:
-        if not z:  # I
-            mat = sparse.bmat([[mat, None], [None, mat]], format='coo')
-        else:  # Z
-            mat = sparse.bmat([[mat, None], [None, -mat]], format='coo')
-    return mat.tocsr()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ######################################################
 
-import numpy as np
+# from scipy import sparse
 
-def get_tsp_qubitops(w,num_nodes,penalty=1e5):
-    num_qubits = num_nodes ** 2
-    zero = np.zeros(num_qubits, dtype=np.bool)
-    wsoppz = []
-    shift = 0
-    for i in range(num_nodes):
-        for j in range(num_nodes):
-            if i == j:
-                continue
-            for p in range(num_nodes):
-                q = (p + 1) % num_nodes
-                shift += w[i, j] / 4
+# def paulis_to_matrix(pl):
+#     """
+#     Convert paulis to matrix, and save it in internal property directly.
+#     If all paulis are Z or I (identity), convert to dia_matrix.
+#     """
+#     p = pl[0]
+#     hamiltonian = p[0] * to_spmatrix(p[1])
+#     for idx in range(1, len(pl)):
+#         p = pl[idx]
+#         hamiltonian += p[0] * to_spmatrix(p[1])
+#     return hamiltonian
 
-                zp = np.zeros(num_qubits, dtype=np.bool)
-                zp[i * num_nodes + p] = True
-                wsoppz.append([-w[i, j] / 4, zp])
-
-                zp = np.zeros(num_qubits, dtype=np.bool)
-                zp[j * num_nodes + q] = True
-                wsoppz.append([-w[i, j] / 4, zp])
-
-                zp = np.zeros(num_qubits, dtype=np.bool)
-                zp[i * num_nodes + p] = True
-                zp[j * num_nodes + q] = True
-                wsoppz.append([w[i, j] / 4, zp])
-    
-    for i in range(num_nodes):
-        for p in range(num_nodes):
-            zp = np.zeros(num_qubits, dtype=np.bool)
-            zp[i * num_nodes + p] = True
-            wsoppz.append([penalty, Pauli(zp, zero)])
-            shift += -penalty
-
-    for p in range(num_nodes):
-        for i in range(num_nodes):
-            for j in range(i):
-                shift += penalty / 2
-
-                zp = np.zeros(num_qubits, dtype=np.bool)
-                zp[i * num_nodes + p] = True
-                wsoppz.append([-penalty / 2, Pauli(zp, zero)])
-
-                zp = np.zeros(num_qubits, dtype=np.bool)
-                zp[j * num_nodes + p] = True
-                wsoppz.append([-penalty / 2, Pauli(zp, zero)])
-
-                zp = np.zeros(num_qubits, dtype=np.bool)
-                zp[i * num_nodes + p] = True
-                zp[j * num_nodes + p] = True
-                wsoppz.append([penalty / 2, Pauli(zp, zero)])
-
-    for i in range(num_nodes):
-        for p in range(num_nodes):
-            for q in range(p):
-                shift += penalty / 2
-
-                zp = np.zeros(num_qubits, dtype=np.bool)
-                zp[i * num_nodes + p] = True
-                wsoppz.append([-penalty / 2, Pauli(zp, zero)])
-
-                zp = np.zeros(num_qubits, dtype=np.bool)
-                zp[i * num_nodes + q] = True
-                wsoppz.append([-penalty / 2, Pauli(zp, zero)])
-
-                zp = np.zeros(num_qubits, dtype=np.bool)
-                zp[i * num_nodes + p] = True
-                zp[i * num_nodes + q] = True
-                wsoppz.append([penalty / 2, Pauli(zp, zero)])
-    shift += 2 * penalty * num_nodes
-    return wsoppz
-
-
-def simplify_paulis(pl):
-    """
-    Merge the paulis (grouped_paulis) whose bases are identical but the pauli with zero coefficient would not be removed.
-    """
-    new_paulis = []
-    new_paulis_table = {}
-    for curr_paulis in pl:
-        pauli_label = pz_str(curr_paulis[1])
-        new_idx = new_paulis_table.get(pauli_label, None)
-        if new_idx is not None:
-            new_paulis[new_idx][0] += curr_paulis[0]
-        else:
-            new_paulis_table[pauli_label] = len(new_paulis)
-            new_paulis.append(curr_paulis)
-    return new_paulis
+# def to_spmatrix(p):
+#     """
+#     Convert Pauli to a sparse matrix representation (CSR format).
+#     Order is q_{n-1} .... q_0, i.e., $P_{n-1} \otimes ... P_0$
+#     Returns:
+#         scipy.sparse.csr_matrix: a sparse matrix with CSR format that
+#         represnets the pauli.
+#     """
+#     mat = sparse.coo_matrix(1)
+#     for z in p:
+#         if not z:  # I
+#             mat = sparse.bmat([[mat, None], [None, mat]], format='coo')
+#         else:  # Z
+#             mat = sparse.bmat([[mat, None], [None, -mat]], format='coo')
+#     return mat.tocsr()
 
 ######################################################
-
-def calc_distance():
-    w = np.zeros((num_nodes, num_nodes))
-    for i in range(num_nodes):
-        for j in range(i + 1, num_nodes):
-            delta = coord[i] - coord[j]
-            w[i, j] = (np.hypot(delta[0], delta[1]))
-    w += w.T
-    return w
-
-def pz_str(pz):
-    """Output the Pauli label."""
-    label = ''
-    for z in pz:
-        if not z:
-            label = ''.join([label, 'I'])
-        else:
-            label = ''.join([label, 'Z'])
-    return label          
-
-######################################################
-
-coord = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
-num_nodes = len(coord)
-w = calc_distance()
-print(w)
-
-wsoppzb = get_tsp_qubitops(w,num_nodes)
-swsoppzb = simplify_paulis(wsoppzb) # simplified weighted Sum-of-Product of Pauli-Z in boolean
-print("Simplified from",len(wsoppzb),"to",len(swsoppzb),"terms")
-
-wsopp = []
-for i in swsoppzb:
-    wsopp.append((i[0],pz_str(i[1])))
-    print((pz_str(i[1]),i[0]))
