@@ -208,14 +208,29 @@ Defines the city graph for TSP
 #   |/  \|
 #   3----2
 
+# def graph_problem():
+#     g = nx.Graph()
+#     g.add_edge(0,1,weight=1)
+#     g.add_edge(0,2,weight=math.sqrt(2))
+#     g.add_edge(0,3,weight=1)
+#     g.add_edge(1,2,weight=1)
+#     g.add_edge(1,3,weight=math.sqrt(2))
+#     g.add_edge(2,3,weight=1)
+#     return g
+
+# 3 cities unit distance undirected complete-graph
+
+#       0
+#      / \
+#     /   \
+#    /     \
+#   2-------1
+
 def graph_problem():
     g = nx.Graph()
     g.add_edge(0,1,weight=1)
-    g.add_edge(0,2,weight=math.sqrt(2))
-    g.add_edge(0,3,weight=1)
+    g.add_edge(0,2,weight=1)
     g.add_edge(1,2,weight=1)
-    g.add_edge(1,3,weight=math.sqrt(2))
-    g.add_edge(2,3,weight=1)
     return g
 
 g = graph_problem()
@@ -354,27 +369,29 @@ def ansatz_pqasm_tsp(wsopp):
     coeffs = [] # Weights for the angle parameter for each gate
     angles = [0,0] # Counts for [cost,mixing] Hamiltonian angles
     
-    for i in wsopp:
+    for i in wsopp: # Find better way to find length of one key in a dict
     	n_qubits = len(i)
     	break
     
-    # for i,j in g.edges():
-    #     # 0.5*Z_i*Z_j
-    #     ansatz.append(("cnot",[i,j]))
-    #     ansatz.append(("rz",j))
-    #     coeffs.append(2*0.5)
-    #     angles[0] += 1 # gamma: cost Hamiltonian
-    #     ansatz.append(("cnot",[i,j]))
-    #     # -0.5*I_0
-    #     ansatz.append(("x",0))
-    #     ansatz.append(("rz",0))
-    #     coeffs.append(-1*-0.5)
-    #     angles[0] += 1 # gamma: cost Hamiltonian
-    #     ansatz.append(("x",0))
-    #     ansatz.append(("rz",0))
-    #     coeffs.append(-1*-0.5)
-    #     angles[0] += 1 # gamma: cost Hamiltonian
-    
+    # Cost Hamiltonian # CHECK THIS PART WITH RIGETTI AND TSP FORM
+
+    for i in wsopp:
+
+    	if i.count('Z') == 1:
+    		ansatz.append(("rz",i.find('Z')))
+    		coeffs.append(+2*+1)
+    		angles[0] += 1 # gamma
+
+    	else:
+    		cq = i.find('Z')
+    		tq = (cq+1)+i[(cq+1):].find('Z')
+    		ansatz.append(("cnot",[cq,tq]))
+    		ansatz.append(("rz",tq))
+    		coeffs.append(+2*+1)
+    		angles[0] += 1 # gamma
+    		ansatz.append(("cnot",[cq,tq]))  
+    		# print(i,wsopp[i],cq,tq)
+
     # Mixing Hamiltonian
     
     # +I_all (doesn't matter which qubit)
