@@ -1,8 +1,7 @@
 # Quantum_World
 
 [![Python version](https://badgen.net/badge/python/3.7)](http://aritrasarkar.com/research/quantum/)
-[![Activity](https://badgen.net/github/last-commit/micromatch/micromatch)](https://github.com/prince-ph0en1x/QWorld/commits/master)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 ## Development
 
