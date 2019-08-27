@@ -2,7 +2,7 @@
 
 [![Python version](https://badgen.net/badge/python/3.7)](http://aritrasarkar.com/research/quantum/)
 [![Activity](https://badgen.net/github/last-commit/micromatch/micromatch)](https://github.com/prince-ph0en1x/QWorld/commits/master)
-[![License](https://badgen.net/github/license/micromatch/micromatch)](https://github.com/prince-ph0en1x/QWorld/blob/master/LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ## Development
 
