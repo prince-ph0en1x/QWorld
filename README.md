@@ -1,5 +1,7 @@
 # Quantum_World
 
+[![Python version](https://badgen.net/badge/python/3.7)](http://aritrasarkar.com/research/quantum/)
+
 ## Development
 
 The quantum programming platform at the [Quantum Computer Architecture lab](https://www.tudelft.nl/en/eemcs/the-faculty/departments/quantum-computer-engineering/quantum-computer-architecture-lab/) at [TU Delft](https://www.tudelft.nl/en/) is centered around the OpenQL compiler and [QX simulator](http://quantum-studio.net/).
