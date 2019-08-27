@@ -2,7 +2,8 @@
 
 [![Python version](https://badgen.net/badge/python/3.7)](http://aritrasarkar.com/research/quantum/)
 [![Platform support](https://badgen.net/badge/platform/linux,macos?list=1)](https://mbrobbel.github.io/dqcsim/install/index.html)
-[![CircleCI](https://circleci.com/gh/prince-ph0en1x/QWorld/tree/master.svg?style=shield)](https://circleci.com/gh/prince-ph0en1x/QWorld/tree/master)[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![CircleCI](https://circleci.com/gh/prince-ph0en1x/QWorld/tree/master.svg?style=shield)](https://circleci.com/gh/prince-ph0en1x/QWorld/tree/master)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 ## Development
 
