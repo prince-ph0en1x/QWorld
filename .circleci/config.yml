@@ -5,13 +5,13 @@
 version: 2
 jobs:
 
-  one:
-    docker:
-      - image: circleci/ruby:2.4.1
-    steps:
-      - checkout
-      - run: echo "A first hello"
-      - run: sleep 25
+  # one:
+  #   docker:
+  #     - image: circleci/ruby:2.4.1
+  #   steps:
+  #     - checkout
+  #     - run: echo "A first hello"
+  #     - run: sleep 25
 
   build:
     docker:
@@ -71,5 +71,5 @@ workflows:
    version: 2
    one_and_build:
      jobs:
-       - one
+       # - one
        - build

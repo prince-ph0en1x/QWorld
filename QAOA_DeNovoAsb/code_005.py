@@ -1,5 +1,5 @@
 # TSP QAOA
-# ..:$ python3 code_004.py 
+# ..:$ python3 code_005.py 
 
 import networkx as nx
 import math
@@ -17,7 +17,7 @@ shots = 500 # If isv_prob is false, the experiment is run over multple shots for
 
 track_opt = []
 track_optstep = 0
-track_probs = []
+
 
 class QAOA(object):
 
@@ -28,6 +28,7 @@ class QAOA(object):
                                  'ftol':1.0e-6, 'xtol':1.0e-6, 'disp':True, 'return_all':True}}
         self.p_name = "test_output/qaoa_run.qasm"
         self.expt = 0    
+        self.probs = []
     
     def qaoa_run(self, wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas):
         n_qubits = len(list(wsopp.keys())[0])
@@ -91,50 +92,6 @@ class QAOA(object):
 
             prog.close()        
 
-        def expectation(params):
-            E = 0
-            self.expt = 0
-            xsgn = [-1,1] # Try [1,-1] with ry +pi/2 in qasmify for pt == 'X'
-            zsgn = [1,-1]
-            isgn = [1,-1]
-            global track_probs
-            track_probs = np.zeros(2**n_qubits)
-
-            for wpp in wsopp:
-                qasmify(params,wpp)
-                self.qx.set(self.p_name)
-
-                Epp = 0
-                p = np.zeros(2**n_qubits)
-                c = np.zeros(n_qubits,dtype=bool)
-                for i in range(shots):
-                    self.qx.execute()
-                    # self.qx.execute(1)
-                    for i in range(n_qubits):
-                        c[i] = self.qx.get_measurement_outcome(i)
-                    idx = sum(v<<i for i, v in enumerate(c[::-1]))    
-                    p[idx] += 1/shots
-
-                psgn = [1]
-                for pt in wpp:
-                    if pt == "X":
-                        psgn = np.kron(psgn,xsgn)
-                    #elif pt == "Y":
-                    #    psgn = np.kron(psgn,xsgn) # TBD
-                    elif pt == "Z":
-                        psgn = np.kron(psgn,zsgn)
-                    else: # Identity
-                        psgn = np.kron(psgn,isgn)
-                for pn in range(2**n_qubits):
-                    Epp += psgn[pn]*p[pn]                
-                E += wsopp[wpp]*Epp
-                self.expt += E
-
-                if wpp == "I"*n_qubits:
-                    track_probs = p
-
-            return E
-
         def expectation_isv(params):
             global ptrn
             E = 0
@@ -142,8 +99,6 @@ class QAOA(object):
             xsgn = [-1,1] # Try [1,-1] with ry +pi/2 in qasmify for pt == 'X'
             zsgn = [1,-1]
             isgn = [1,-1]
-            global track_probs
-            track_probs = np.zeros(2**n_qubits)
 
             for wpp in wsopp:
                 qasmify(params,wpp)
@@ -173,7 +128,7 @@ class QAOA(object):
                 self.expt += E
 
                 if wpp == "I"*n_qubits:
-                    track_probs = p
+                    self.probs = p
                
             return E
 
@@ -182,12 +137,12 @@ class QAOA(object):
             global track_optstep
             global track_probs
             print("Step: ",track_optstep)
-            # print("Current Optimal Parameters: ",cb)
+            print("Current Optimal Parameters: ",cb)
             # print("Current Expectation Value: ",self.expt)
-            # print("Current Optimal Probabilities: ",track_probs)
+            # print("Current Optimal Probabilities: ",self.probs)
             track_optstep += 1
             # input("Press Enter to continue to step "+str(track_optstep))
-            track_opt.append([track_optstep, cb, track_probs])
+            track_opt.append([track_optstep, cb, self.probs])
                
         args = [expectation_isv, params]
         r = self.minimizer(*args, callback=intermediate, **self.minimizer_kwargs) 
@@ -253,6 +208,8 @@ def graph_to_wsopp_tsp(g):
     penalty = 1e5 # How to set this?
     shift = 2*penalty*n_cities   # What is this?
     
+    wsopp[Iall] = 1 # to get results
+
     # penalty: CiTp --> CiTp
     for i in range(n_cities):
         for p in range(n_timeslots):
@@ -382,7 +339,7 @@ def ansatz_pqasm_tsp(wsopp):
     		coeffs.append(+2*+1)
     		angles[0] += 1 # gamma
 
-    	else:
+    	elif i.count('Z') == 2: #check for the Iall case
     		cq = i.find('Z')
     		tq = (cq+1)+i[(cq+1):].find('Z')
     		ansatz.append(("cnot",[cq,tq]))
@@ -426,170 +383,30 @@ init_betas = np.random.uniform(0, 2*np.pi, steps)
 ######################################################
 
 maxiter = 2
-
+# print(wsopp)
 qaoa_obj = QAOA(maxiter)
 res = qaoa_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
 print(res.status, res.fun, res.x)
 # print(track_opt[-1])
-# print(sum(track_opt[0][2]))
+# print(sum(track_opt[0][2])) # debug, should add up to almost 1
+
+find_solns = {}
+enc = 0
+for i in track_opt[-1][2]:
+    find_solns[format(enc,'#011b')] = i 
+    enc += 1
+
+plines = 10 # Top few solutions
+for elem in sorted(find_solns, key = find_solns.get, reverse = True) :
+    print(elem , " ::" , find_solns[elem])
+    plines -= 1
+    if plines == 0:
+        break
+
 # # %matplotlib inline
 # plt.ylim((0,1))
 # plt.plot(track_opt[0][2],'--') # Initial
 # plt.plot(track_opt[-1][2]) # Final
 # plt.show()
-
-
-
-######################################################
-
-# from pyquil.paulis import *
-# # from pyquil.gates import *
-# ps = sI(2)
-# ps = 0.2*(sI(0) - sZ(1)*sZ(2))	
-# # for i in range(0,4):
-# # 	ps -= sX(i)
-# print(ps)
-
-# for pt in ps: # pauli term in pauli sum
-# 	print("\nPauli Term: ",pt)
-# 	empt = exponential_map(pt)
-# 	for gs in empt(1.222):
-# 		print(gs)
-
-######################################################
-
-# def graph_to_pqasm(g,n_qubits):
-#     coeffs = [] # Weights for the angle parameter for each gate
-#     angles = [0,0] # Counts for [cost,mixing] Hamiltonian angles
-#     Iall = ""
-#     for i in range(n_qubits):
-#         Iall += "I"
-#     ansatz = [] # qasm tokens
-#     for i,j in g.edges():
-#         # 0.5*Z_i*Z_j
-#         ansatz.append(("cnot",[i,j]))
-#         ansatz.append(("rz",j))
-#         coeffs.append(2*0.5)
-#         angles[0] += 1 # gamma: cost Hamiltonian
-#         ansatz.append(("cnot",[i,j]))
-#         # -0.5*I_0
-#         ansatz.append(("x",0))
-#         ansatz.append(("rz",0))
-#         coeffs.append(-1*-0.5)
-#         angles[0] += 1 # gamma: cost Hamiltonian
-#         ansatz.append(("x",0))
-#         ansatz.append(("rz",0))
-#         coeffs.append(-1*-0.5)
-#         angles[0] += 1 # gamma: cost Hamiltonian
-#     for i in g.nodes():
-#         # -X_i
-#         ansatz.append(("h",i))
-#         ansatz.append(("rz",i))
-#         coeffs.append(2*-1)
-#         angles[1] += 1 # beta: mixing Hamiltonian
-#         ansatz.append(("h",i))
-#     return ansatz, coeffs, angles
-
-# ansatz, cfs, aid = graph_to_pqasm(g,len(g.nodes()))
-
-# steps = 4 # number of steps (QAOA blocks per iteration)
-
-# Initial angle parameters for Hamiltonians cost (gammas) and mixing/driving (betas)
-
-# init_gammas = np.random.uniform(0, 2*np.pi, steps) 
-# init_betas = np.random.uniform(0, np.pi, steps)
-
-# init_gammas = [0, 0]
-# init_betas = [0, 0]
-
-# Optimization terminated successfully.
-#          Current function value: 0.000000
-#          Iterations: 19
-#          Function evaluations: 189
-# 0 0.0 [0.76556019 0.65266102 2.31622719 0.24012393 1.19432261 0.70770831
-#  2.87653068 2.75631259]
-# [18, array([0.76556019, 0.65266102, 2.31622719, 0.24012393, 1.19432261,
-#        0.70770831, 2.87653068, 2.75631259]), array([2.35625479e-02, 4.96280102e-02, 4.91347731e-02, 1.26990289e-02,
-#        4.59621422e-05, 2.46748704e-02, 3.01462133e-02, 3.01462133e-02,
-#        4.59621422e-05, 2.46748704e-02, 7.09195465e-02, 7.09195465e-02,
-#        4.67071649e-03, 4.68969246e-02, 1.26990289e-02, 4.91347731e-02,
-#        4.91347731e-02, 1.26990289e-02, 4.68969246e-02, 4.67071649e-03,
-#        7.09195465e-02, 7.09195465e-02, 2.46748704e-02, 4.59621422e-05,
-#        3.01462133e-02, 3.01462133e-02, 2.46748704e-02, 4.59621422e-05,
-#        1.26990289e-02, 4.91347731e-02, 4.96280102e-02, 2.35625479e-02])]
-
-######################################################
-
-# maxiter = 20
-
-# qaoa_obj = QAOA(maxiter, shots)
-# res = qaoa_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
-# print(res.status, res.fun, res.x)
-# print(track_opt[-1])
-# print(sum(track_opt[0][2]))
-# # %matplotlib inline
-# plt.ylim((0,1))
-# plt.plot(track_opt[0][2],'--') # Initial
-# plt.plot(track_opt[-1][2]) # Final
-# plt.show()
-
-######################################################
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-######################################################
-
-# from scipy import sparse
-
-# def paulis_to_matrix(pl):
-#     """
-#     Convert paulis to matrix, and save it in internal property directly.
-#     If all paulis are Z or I (identity), convert to dia_matrix.
-#     """
-#     p = pl[0]
-#     hamiltonian = p[0] * to_spmatrix(p[1])
-#     for idx in range(1, len(pl)):
-#         p = pl[idx]
-#         hamiltonian += p[0] * to_spmatrix(p[1])
-#     return hamiltonian
-
-# def to_spmatrix(p):
-#     """
-#     Convert Pauli to a sparse matrix representation (CSR format).
-#     Order is q_{n-1} .... q_0, i.e., $P_{n-1} \otimes ... P_0$
-#     Returns:
-#         scipy.sparse.csr_matrix: a sparse matrix with CSR format that
-#         represnets the pauli.
-#     """
-#     mat = sparse.coo_matrix(1)
-#     for z in p:
-#         if not z:  # I
-#             mat = sparse.bmat([[mat, None], [None, mat]], format='coo')
-#         else:  # Z
-#             mat = sparse.bmat([[mat, None], [None, -mat]], format='coo')
-#     return mat.tocsr()
 
 ######################################################
