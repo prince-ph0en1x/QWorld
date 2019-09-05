@@ -524,17 +524,29 @@ qaoa_tsp_obj = QAOA(maxiter)
 #     g.add_edge(3,4,weight=1)
 #     return g
 
-# g = graph_problem()
+# Square ring
+
+#   0---1
+#   |   |
+#   3---2
+
+def graph_problem():
+    g = nx.Graph()
+    g.add_edge(0,1)
+    g.add_edge(0,3)
+    g.add_edge(1,2)
+    g.add_edge(2,3)
+    return g
 
 # Barbell Graph
 
 #   0---1---2
 
-def graph_problem():
-    g = nx.Graph()
-    g.add_edge(0,1)
-    g.add_edge(1,2)
-    return g
+# def graph_problem():
+#     g = nx.Graph()
+#     g.add_edge(0,1)
+#     g.add_edge(1,2)
+#     return g
 
 g = graph_problem()
 
