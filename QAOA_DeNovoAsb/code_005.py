@@ -10,6 +10,10 @@ import matplotlib.pyplot as plt
 import re
 
 ####################################################################################################
+###################################################################################################
+###################################################################################################    QAOA
+###################################################################################################
+###################################################################################################
 
 # If positive, measurement aggregate over multiple shots is taken instead of accessing the internal state vector using get_state()
 # Should be some factor of number of qubits to have the same precision for different problem sizes
@@ -30,6 +34,8 @@ class QAOA(object):
         self.minimizer = minimize
         self.minimizer_kwargs = {'method':'Nelder-Mead', 'options':{'maxiter':maxiter, 
                                  'ftol':1.0e-6, 'xtol':1.0e-6, 'disp':True, 'return_all':True}}
+        # self.minimizer_kwargs = {'method':'Powell', 'options':{'maxiter':maxiter, 
+        #                          'ftol':1.0e-6, 'xtol':1.0e-6, 'disp':True}}
         self.p_name = "test_output/qaoa_run.qasm"
         self.expt = 0    
         self.probs = []
@@ -214,6 +220,10 @@ class QAOA(object):
         r = self.minimizer(*args, callback=intermediate, **self.minimizer_kwargs) # Run QAOA cycles
         return r
 
+####################################################################################################
+####################################################################################################
+####################################################################################################    TSP
+####################################################################################################
 ####################################################################################################
 
 """
@@ -458,8 +468,171 @@ init_betas = np.random.uniform(0, 2*np.pi, steps)
 
 maxiter = 4
 
-qaoa_obj = QAOA(maxiter)
-res = qaoa_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
+qaoa_tsp_obj = QAOA(maxiter)
+# res = qaoa_tsp_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
+
+####################################################################################################
+
+# print(res.status, res.fun, res.x)
+# # print(sum(track_opt[0][2])) # debug, should add up to almost 1
+
+# find_solns = {}
+# enc = 0
+# for i in track_opt[-1][2]:
+#     find_solns[format(enc,'#011b')] = i 
+#     enc += 1
+
+# plines = 10 # Top few solutions
+# for elem in sorted(find_solns, key = find_solns.get, reverse = True) :
+#     print(elem , " ::" , find_solns[elem])
+#     plines -= 1
+#     if plines == 0:
+#         break
+
+# # %matplotlib inline
+# plt.ylim((0,1))
+# plt.plot(track_opt[0][2],'--') # Initial
+# plt.plot(track_opt[-1][2]) # Final
+# plt.show()
+
+####################################################################################################
+####################################################################################################
+####################################################################################################    MaxCut
+####################################################################################################
+####################################################################################################
+
+# Wikipedia example
+
+#     1--2
+#    /|  |
+#   0 |  |
+#    \|  |
+#     4--3 
+
+# 43210
+# 01010 - 10101
+# 10100 - 01011
+# 10, 11, 20, 21
+
+# def graph_problem():
+#     g = nx.Graph()
+#     g.add_edge(0,1,weight=1)
+#     g.add_edge(0,4,weight=1)
+#     g.add_edge(1,2,weight=1)
+#     g.add_edge(1,4,weight=1)
+#     g.add_edge(2,3,weight=1)
+#     g.add_edge(3,4,weight=1)
+#     return g
+
+# g = graph_problem()
+
+# Barbell Graph
+
+#   0---1---2
+
+def graph_problem():
+    g = nx.Graph()
+    g.add_edge(0,1)
+    g.add_edge(1,2)
+    return g
+
+g = graph_problem()
+
+####################################################################################################
+
+"""
+Converts the MaxCut graph to wsopp for problem Hamiltonian for QUBO/Ising model
+"""
+
+def graph_to_wsopp_mxct(g):
+    # for i in g.edges():
+    #     print(i,g.edges[i]['weight'])
+    wsopp = {}
+    n_qubits = len(g.nodes())
+    Iall = "I"*n_qubits
+
+    for i,j in g.edges():
+        # 0.5*Z_i*Z_j
+        sopp = Iall[:n_qubits-1-i]+"Z"+Iall[n_qubits-1-i+1:]
+        sopp = sopp[:n_qubits-1-j]+"Z"+sopp[n_qubits-1-j+1:]
+        if sopp in wsopp:
+            wsopp[sopp] = wsopp[sopp] + 0.5
+        else:
+            wsopp[sopp] = 0.5
+        # -0.5*I_0
+        if Iall in wsopp:
+            wsopp[Iall] = wsopp[Iall] - 0.5
+        else:
+            wsopp[Iall] = -0.5
+    return wsopp
+    
+wsopp = graph_to_wsopp_mxct(g)
+
+# print(len(wsopp))
+# for i in wsopp:
+#     print(i,wsopp[i]) 
+
+# {'IIIZZ': 0.5, 'IIIII': -3.0, 'ZIIIZ': 0.5, 'IIZZI': 0.5, 'ZIIZI': 0.5, 'ZZIII': 0.5, 'IZZII': 0.5}
+
+####################################################################################################
+
+
+initstate = []
+for i in range(0,len(g.nodes())): # Reference state preparation
+    initstate.append(("h",i))
+
+# Refer: Rigetti --> Forest --> PyQuil --> paulis.py --> exponential_map()
+def ansatz_pqasm_mxct(wsopp):
+    return 0
+
+def graph_pqasm_mxct(g):
+    n_qubits = len(g.nodes())
+    coeffs = [] # Weights for the angle parameter for each gate
+    angles = [0,0] # Counts for [cost,mixing] Hamiltonian angles
+    Iall = ""
+    for i in range(n_qubits):
+        Iall += "I"
+    ansatz = [] # qasm tokens
+    for i,j in g.edges():
+        # 0.5*Z_i*Z_j
+        ansatz.append(("cnot",[i,j]))
+        ansatz.append(("rz",j))
+        coeffs.append(2*0.5)
+        angles[0] += 1 # gamma: cost Hamiltonian
+        ansatz.append(("cnot",[i,j]))
+        # -0.5*I_0
+        ansatz.append(("x",0))
+        ansatz.append(("rz",0))
+        coeffs.append(-1*-0.5)
+        angles[0] += 1 # gamma: cost Hamiltonian
+        ansatz.append(("x",0))
+        ansatz.append(("rz",0))
+        coeffs.append(-1*-0.5)
+        angles[0] += 1 # gamma: cost Hamiltonian
+    for i in g.nodes():
+        # -X_i
+        ansatz.append(("h",i))
+        ansatz.append(("rz",i))
+        coeffs.append(2*-1)
+        angles[1] += 1 # beta: mixing Hamiltonian
+        ansatz.append(("h",i))
+    return ansatz, coeffs, angles
+
+ansatz, cfs, aid = graph_pqasm_mxct(g)
+
+steps = 3 # Number of steps (QAOA blocks per iteration)
+
+# Initial angle parameters for Hamiltonians cost (gammas) and mixing/driving (betas)
+init_gammas = np.random.uniform(0, 2*np.pi, steps) 
+init_betas = np.random.uniform(0, 2*np.pi, steps)
+
+
+####################################################################################################
+
+maxiter = 20
+
+qaoa_mxct_obj = QAOA(maxiter)
+res = qaoa_mxct_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
 
 ####################################################################################################
 
@@ -468,11 +641,12 @@ print(res.status, res.fun, res.x)
 
 find_solns = {}
 enc = 0
+
 for i in track_opt[-1][2]:
-    find_solns[format(enc,'#011b')] = i 
+    find_solns[format(enc,'#07b')] = i 
     enc += 1
 
-plines = 10 # Top few solutions
+plines = 6 # Top few solutions
 for elem in sorted(find_solns, key = find_solns.get, reverse = True) :
     print(elem , " ::" , find_solns[elem])
     plines -= 1
@@ -485,4 +659,25 @@ plt.plot(track_opt[0][2],'--') # Initial
 plt.plot(track_opt[-1][2]) # Final
 plt.show()
 
+####################################################################################################
+####################################################################################################
+####################################################################################################
+####################################################################################################
+####################################################################################################
+#
+#                @@@@@@@   @@@  @@@   @@@@@@   @@@@@@@@  @@@  @@@  @@@  @@@  @@@
+#                @@@@@@@@  @@@  @@@  @@@@@@@@  @@@@@@@@  @@@@ @@@  @@@  @@@  @@@
+#                @@!  @@@  @@!  @@@  @@!  @@@  @@!       @@!@!@@@  @@!  @@!  !@@
+#                !@!  @!@  !@!  @!@  !@!  @!@  !@!       !@!!@!@!  !@!  !@!  @!!
+#                @!@@!@!   @!@!@!@!  @!@  !@!  @!!!:!    @!@ !!@!  !!@   !@@!@!
+#                !!@!!!    !!!@!!!!  !@!  !!!  !!!!!:    !@!  !!!  !!!    @!!!
+#                !!:       !!:  !!!  !!:  !!!  !!:       !!:  !!!  !!:   !: :!!
+#                :!:       :!:  !:!  :!:  !:!  :!:       :!:  !:!  :!:  :!:  !:!
+#                 ::       ::   :::  ::::: ::   :: ::::   ::   ::   ::   ::  :::
+#                 :         :   : :   : :  :   : :: ::   ::    :   :     :   ::
+#
+####################################################################################################
+####################################################################################################
+####################################################################################################
+####################################################################################################
 ####################################################################################################
