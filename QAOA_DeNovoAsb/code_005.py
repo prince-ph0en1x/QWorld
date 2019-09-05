@@ -9,19 +9,23 @@ from qxelarator import qxelarator
 import matplotlib.pyplot as plt
 import re
 
-######################################################
+####################################################################################################
 
-ptrn = re.compile('\(([+-]\d+.*\d*),([+-]\d+.*\d*)\)\s[|]([0-1]*)>') # Regular expression to extract the amplitudes from the string returned by get_state()
-isv_prob = True # True if the internal state vector is accessed using get_state() instead of measurement aggregates over multiple shots
-shots = 500 # If isv_prob is false, the experiment is run over multple shots for measurement aggregate. Should be some factor of number of qubits to have the same precision
+# If positive, measurement aggregate over multiple shots is taken instead of accessing the internal state vector using get_state()
+# Should be some factor of number of qubits to have the same precision for different problem sizes
+shots = 0 
 
+# Database to save optimization result from each step
+# [step_number, parameters, probabilities, expectation_value]
 track_opt = []
-track_optstep = 0
 
+# Regular expression to extract the amplitudes from the string returned by get_state()
+ptrn = re.compile('\(([+-]\d+.*\d*),([+-]\d+.*\d*)\)\s[|]([0-1]*)>') 
 
 class QAOA(object):
 
     def __init__(self, maxiter):
+        
         self.qx = qxelarator.QX()
         self.minimizer = minimize
         self.minimizer_kwargs = {'method':'Nelder-Mead', 'options':{'maxiter':maxiter, 
@@ -29,9 +33,14 @@ class QAOA(object):
         self.p_name = "test_output/qaoa_run.qasm"
         self.expt = 0    
         self.probs = []
+        self.optstep = 0
     
     def qaoa_run(self, wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas):
+        
+        global shots
         n_qubits = len(list(wsopp.keys())[0])
+
+        # Form Parameterized QASM
         pqasm = []
         coeffs = []
         ang_nos = []
@@ -46,13 +55,17 @@ class QAOA(object):
             params.append(init_gammas[p])
             params.append(init_betas[p]) 
 
+        '''
+        De-parameterizes the variational circuit to cQASM
+        Adds pre-rotation based on which Pauli Sum to measure the expectation
+        Adds measurments based on type of run
+        '''
         def qasmify(params, wpp):
-            global isv_prob
+
             prog = open(self.p_name,"w")
             prog.write("# De-parameterized QAOA ansatz\n")
             prog.write("version 1.0\n")
             prog.write("qubits "+str(n_qubits)+"\n")
-            
             prog.write(".qk(1)\n")
             
             # De-parameterize pqasm
@@ -86,13 +99,17 @@ class QAOA(object):
                 tgt -= 1
 
             # Measure all
-            if not isv_prob:
+            if shots > 0:
                 for i in range(n_qubits):
                     prog.write("measure q["+str(i)+"]\n")
 
             prog.close()        
 
+        '''
+        Access the internal state vector of QX to find the aggregate expectation value of each Pauli Product term in the Hamiltonian
+        '''
         def expectation_isv(params):
+            
             global ptrn
             E = 0
             self.expt = 0
@@ -132,23 +149,72 @@ class QAOA(object):
                
             return E
 
+        def expectation_qst(params):
+            E = 0
+            # self.expt = 0
+            # xsgn = [-1,1] # Try [1,-1] with ry +pi/2 in qasmify for pt == 'X'
+            # zsgn = [1,-1]
+            # isgn = [1,-1]
+            # global track_probs
+            # track_probs = np.zeros(2**n_qubits)
+
+            # for wpp in wsopp:
+            #     qasmify(params,wpp)
+            #     self.qx.set(self.p_name)
+
+            #     Epp = 0
+            #     p = np.zeros(2**n_qubits)
+            #     c = np.zeros(n_qubits,dtype=bool)
+            #     for i in range(shots):
+            #         self.qx.execute()
+            #         # self.qx.execute(1)
+            #         for i in range(n_qubits):
+            #             c[i] = self.qx.get_measurement_outcome(i)
+            #         idx = sum(v<<i for i, v in enumerate(c[::-1]))    
+            #         p[idx] += 1/shots
+
+            #     psgn = [1]
+            #     for pt in wpp:
+            #         if pt == "X":
+            #             psgn = np.kron(psgn,xsgn)
+            #         #elif pt == "Y":
+            #         #    psgn = np.kron(psgn,xsgn) # TBD
+            #         elif pt == "Z":
+            #             psgn = np.kron(psgn,zsgn)
+            #         else: # Identity
+            #             psgn = np.kron(psgn,isgn)
+            #     for pn in range(2**n_qubits):
+            #         Epp += psgn[pn]*p[pn]                
+            #     E += wsopp[wpp]*Epp
+            #     self.expt += E
+
+            #     if wpp == "I"*n_qubits:
+            #         track_probs = p
+
+            return E
+
+        '''
+        Callback function for accessing intermediate results of optimization
+        '''
         def intermediate(cb):
             global track_opt
-            global track_optstep
-            global track_probs
-            print("Step: ",track_optstep)
-            print("Current Optimal Parameters: ",cb)
-            # print("Current Expectation Value: ",self.expt)
-            # print("Current Optimal Probabilities: ",self.probs)
-            track_optstep += 1
-            # input("Press Enter to continue to step "+str(track_optstep))
-            track_opt.append([track_optstep, cb, self.probs])
+            print("Step: ",self.optstep)
+            print("\tOptimal Parameters: ",cb)
+            print("\tExpectation Value: ",self.expt)
+            # print("\tOptimal Probabilities: ",self.probs)
+            self.optstep += 1
+            track_opt.append([self.optstep, cb, self.probs, self.expt])
+            # input("Press Enter to continue to next step")
                
-        args = [expectation_isv, params]
-        r = self.minimizer(*args, callback=intermediate, **self.minimizer_kwargs) 
+        if shots <= 0:
+            args = [expectation_isv, params] 
+        else:
+            args = [expectation_qst, params]
+           
+        r = self.minimizer(*args, callback=intermediate, **self.minimizer_kwargs) # Run QAOA cycles
         return r
 
-######################################################
+####################################################################################################
 
 """
 Defines the city graph for TSP
@@ -181,6 +247,14 @@ Defines the city graph for TSP
 #    /     \
 #   2-------1
 
+# Encoding      Semantics
+# 001010100     2 > 1 > 0
+# 001100010     1 > 2 > 0
+# 010001100     2 > 0 > 1
+# 010100001     1 > 0 > 2
+# 100001010     0 > 2 > 1
+# 100010001     0 > 1 > 2
+
 def graph_problem():
     g = nx.Graph()
     g.add_edge(0,1,weight=1)
@@ -190,7 +264,7 @@ def graph_problem():
 
 g = graph_problem()
 
-######################################################
+####################################################################################################
 
 """
 Converts the TSP graph to wsopp for problem Hamiltonian for QUBO/Ising model
@@ -314,10 +388,10 @@ shift, wsopp = graph_to_wsopp_tsp(g)
 # for i in wsopp:
 #     print(i,wsopp[i]) 
 
-######################################################
+####################################################################################################
 
 initstate = []
-for i in range(0,len(g.nodes())): # Reference state preparation
+for i in range(0,len(g.nodes())**2): # Reference state preparation
     initstate.append(("h",i))
 
 # Refer: Rigetti --> Forest --> PyQuil --> paulis.py --> exponential_map()
@@ -380,14 +454,16 @@ steps = 1 # Number of steps (QAOA blocks per iteration)
 init_gammas = np.random.uniform(0, 2*np.pi, steps) 
 init_betas = np.random.uniform(0, 2*np.pi, steps)
 
-######################################################
+####################################################################################################
 
-maxiter = 2
-# print(wsopp)
+maxiter = 4
+
 qaoa_obj = QAOA(maxiter)
 res = qaoa_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
+
+####################################################################################################
+
 print(res.status, res.fun, res.x)
-# print(track_opt[-1])
 # print(sum(track_opt[0][2])) # debug, should add up to almost 1
 
 find_solns = {}
@@ -403,10 +479,10 @@ for elem in sorted(find_solns, key = find_solns.get, reverse = True) :
     if plines == 0:
         break
 
-# # %matplotlib inline
-# plt.ylim((0,1))
-# plt.plot(track_opt[0][2],'--') # Initial
-# plt.plot(track_opt[-1][2]) # Final
-# plt.show()
+# %matplotlib inline
+plt.ylim((0,1))
+plt.plot(track_opt[0][2],'--') # Initial
+plt.plot(track_opt[-1][2]) # Final
+plt.show()
 
-######################################################
+####################################################################################################
