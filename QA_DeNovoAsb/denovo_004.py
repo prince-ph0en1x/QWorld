@@ -1,5 +1,5 @@
 """
-Take Q-matrix from De novo TSP example and solve the QUBO model using dimod exact solver
+Take Q-matrix from De novo TSP example and solve the QUBO and Ising model using dimod exact solver
 
 Expected output:
 
@@ -7,6 +7,11 @@ Expected output:
 {'n0t0': 0, 'n0t1': 1, 'n0t2': 0, 'n0t3': 0, 'n1t0': 0, 'n1t1': 0, 'n1t2': 1, 'n1t3': 0, 'n2t0': 0, 'n2t1': 0, 'n2t2': 0, 'n2t3': 1, 'n3t0': 1, 'n3t1': 0, 'n3t2': 0, 'n3t3': 0}
 {'n0t0': 0, 'n0t1': 0, 'n0t2': 1, 'n0t3': 0, 'n1t0': 0, 'n1t1': 0, 'n1t2': 0, 'n1t3': 1, 'n2t0': 1, 'n2t1': 0, 'n2t2': 0, 'n2t3': 0, 'n3t0': 0, 'n3t1': 1, 'n3t2': 0, 'n3t3': 0}
 {'n0t0': 0, 'n0t1': 0, 'n0t2': 0, 'n0t3': 1, 'n1t0': 1, 'n1t1': 0, 'n1t2': 0, 'n1t3': 0, 'n2t0': 0, 'n2t1': 1, 'n2t2': 0, 'n2t3': 0, 'n3t0': 0, 'n3t1': 0, 'n3t2': 1, 'n3t3': 0}
+
+{'n0t0': 1, 'n0t1': -1, 'n0t2': -1, 'n0t3': -1, 'n1t0': -1, 'n1t1': 1, 'n1t2': -1, 'n1t3': -1, 'n2t0': -1, 'n2t1': -1, 'n2t2': 1, 'n2t3': -1, 'n3t0': -1, 'n3t1': -1, 'n3t2': -1, 'n3t3': 1}
+{'n0t0': -1, 'n0t1': 1, 'n0t2': -1, 'n0t3': -1, 'n1t0': -1, 'n1t1': -1, 'n1t2': 1, 'n1t3': -1, 'n2t0': -1, 'n2t1': -1, 'n2t2': -1, 'n2t3': 1, 'n3t0': 1, 'n3t1': -1, 'n3t2': -1, 'n3t3': -1}
+{'n0t0': -1, 'n0t1': -1, 'n0t2': 1, 'n0t3': -1, 'n1t0': -1, 'n1t1': -1, 'n1t2': -1, 'n1t3': 1, 'n2t0': 1, 'n2t1': -1, 'n2t2': -1, 'n2t3': -1, 'n3t0': -1, 'n3t1': 1, 'n3t2': -1, 'n3t3': -1}
+{'n0t0': -1, 'n0t1': -1, 'n0t2': -1, 'n0t3': 1, 'n1t0': 1, 'n1t1': -1, 'n1t2': -1, 'n1t3': -1, 'n2t0': -1, 'n2t1': 1, 'n2t2': -1, 'n2t3': -1, 'n3t0': -1, 'n3t1': -1, 'n3t2': 1, 'n3t3': -1}
 """
 
 import dimod
@@ -40,6 +45,16 @@ for i in range(0,16):
 
 response = solver.sample_qubo(Q)
 
+minE = min(response.data(['sample', 'energy']), key=lambda x: x[1])
+for sample, energy in response.data(['sample', 'energy']): 
+	if energy == minE[1]:
+		print(sample)
+
+hii, Jij, offset = dimod.qubo_to_ising(Q)
+
+response = solver.sample_ising(hii,Jij)
+
+print()
 minE = min(response.data(['sample', 'energy']), key=lambda x: x[1])
 for sample, energy in response.data(['sample', 'energy']): 
 	if energy == minE[1]:
