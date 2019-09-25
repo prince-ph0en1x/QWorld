@@ -1,6 +1,5 @@
 """
-Q-Matrix constructor from reads
-Connect to D-Wave and solve simple Ising model
+Connect to D-Wave and solve De novo TSP
 """
 
 import numpy as np
@@ -110,12 +109,11 @@ Solve the Ising using dimod exact solver
 hii, Jij, offset = dimod.qubo_to_ising(Q)
 
 # response = solver.sample_ising(hii,Jij)
-
 # # print()
 # minE = min(response.data(['sample', 'energy']), key=lambda x: x[1])
 # for sample, energy in response.data(['sample', 'energy']): 
 # 	if energy == minE[1]:
-# 		print(sample)
+# 		print(sample,energy)
 
 # y = []
 # for sample, energy in response.data(['sample', 'energy']): y.append(energy)
@@ -130,13 +128,14 @@ Embed the QUBO graph in Chimera graph
 
 connectivity_structure = dnx.chimera_graph(3,3) # try to minimize
 G = nx.from_numpy_matrix(Q_matrix)
-embedded_graph = minorminer.find_embedding(G.edges(), connectivity_structure.edges())
 
-# Display maximum chain length and Chimera embedding (returns 0 if embedding is unsuccessful)
 max_chain_length = 0
-for _, chain in embedded_graph.items():
-    if len(chain) > max_chain_length:
-        max_chain_length = len(chain)
+while(max_chain_length == 0):
+	embedded_graph = minorminer.find_embedding(G.edges(), connectivity_structure)
+	for _, chain in embedded_graph.items():
+	    if len(chain) > max_chain_length:
+	        max_chain_length = len(chain)
+# Display maximum chain length and Chimera embedding
 print("max_chain_length",max_chain_length) # try to minimize
 # dnx.draw_chimera_embedding(connectivity_structure, embedded_graph)
 # plt.show()
@@ -151,69 +150,57 @@ Solve the embedded Ising using D-Wave solver
 
 import random
 from dwave.cloud import Client
+from dwave.system import DWaveSampler, EmbeddingComposite
+from dwave.embedding import embed_ising 
 
-
-
-solver_qpt = dimod.ExactSolver()
-f = open("denovo_001.qubo", "r")
-qubo_header = f.readline().split()
-hii = {}
-Jij = {}
-for i in range(0,int(qubo_header[4])):
-	x = f.readline().split()
-	hii[x[0]] = float(x[2])	
-for i in range(0,int(qubo_header[5])):
-	x = f.readline().split()
-	Jij[(x[0],x[1])] = float(x[2])
-f.close()
-
-print(hii, Jij)
-response_qpt = solver.sample_ising(hii, Jij)
-#Equivalent to: response = solver.sample_ising({'n0t0': -0.5, 'n0t1': 1.0}, {('n0t0', 'n0t1'): -1})
-
-for sample, energy in response_qpt.data(['sample', 'energy']): print(sample, energy)
-
-
-
-# config_file='/home/aritra/.config/dwave/dwave.conf'
 config_file='/media/sf_QWorld/QWorld/QA_DeNovoAsb/dwcloud.conf'
 
 client = Client.from_config(config_file, profile='aritra')
 solver = client.get_solver()
 
-# linear = {index: random.choice([-1, 1]) for index in solver.nodes}
-# quad = {key: random.choice([-1, 1]) for key in solver.undirected_edges}
-# computation = solver.sample_ising(linear, quad, num_reads=100)
-# print(computation.samples[0])
+edgelist = solver.edges
 
-# print(solver.nodes)
-# print(solver.undirected_edges)
-# print(embedded_graph)
-# print(solver.qpu)
-# print(solver.software)
-# print(solver.num_active_qubits)
-# print(solver.num_qubits)
-# print(solver.online)
-# print(solver.name)
-# print(solver.avg_load)
-# print(solver.num_active_qubits)
-# print(solver.num_qubits)
-# print(solver.online)
-# print(solver.max_num_reads(num_reads=2))
-# print(solver.edges) # names of edges
+# https://github.com/dwavesystems/dwave-system/blob/master/dwave/embedding/utils.py DOESNT WORK
+adjdict = dict()
+for u, v in edgelist:
+    if u in adjdict:
+        adjdict[u].add(v)
+    else:
+        adjdict[u] = {v}
+    if v in adjdict:
+        adjdict[v].add(u)
+    else:
+        adjdict[v] = {u}
 
-# response_qpu = solver.sample_ising(hii,Jij)
+embed = minorminer.find_embedding(Jij.keys(),edgelist)
+[h_qpu, j_qpu] = embed_ising(hii, Jij, embed, adjdict)
 
-u, v = next(iter(solver.edges))
-response_qpt = solver.sample_ising({u: -0.5, v: 1.0}, {(u, v): -1}, num_reads=5)
+response_qpt = solver.sample_ising(h_qpu, j_qpu, num_reads=1)
 response_qpt.wait()
 # print(response_qpt.done())
+client.close()
+
+
+from dwave.embedding import unembed_sampleset
 
 res = response_qpt.result()
 # print(res)
 
-for sam in range(len(res['samples'])):
-	print((res['samples'][sam][u],res['samples'][sam][v],res['energies'][sam],res['occurrences'][sam]))
 
-response_qpt.cancel()
-client.close()
+bqm = dimod.BinaryQuadraticModel.from_ising(hii, Jij)
+print(embed)
+
+variables = list(bqm) 
+print(variables)
+chains = [embed[v] for v in variables]
+print(chains)
+
+# print(bqm)
+
+unembedded_res = unembed_sampleset(response_qpt, embed,bqm, chain_break_method ='majority_vote')
+# print(unembedded_res)
+
+	# for sam in range(len(res['samples'])):
+	# 	print((res['samples'][sam][u],res['samples'][sam][v],res['energies'][sam],res['occurrences'][sam]))
+
+	# response_qpt.cancel()
