@@ -2,6 +2,9 @@
 Connect to D-Wave and solve De novo TSP
 """
 
+
+
+
 import numpy as np
 import dimod
 import matplotlib.pyplot as plt
@@ -140,64 +143,66 @@ print("max_chain_length",max_chain_length) # try to minimize
 # dnx.draw_chimera_embedding(connectivity_structure, embedded_graph)
 # plt.show()
 
+
+"""
+TRY
+"""
+
+
+
+
+
 """
 Solve the embedded Ising using D-Wave solver
 """
 
-# Available QPUs
-# 	DW_2000Q_2_1	2038 qubits
-# 	DW_2000Q_5		2030 qubits
-
 import random
 from dwave.cloud import Client
-from dwave.system import DWaveSampler, EmbeddingComposite
-from dwave.embedding import embed_ising 
+from dwave.embedding import embed_ising, unembed_sampleset #, edgelist_to_adjacency
+from dwave.embedding.utils import edgelist_to_adjacency
 
 config_file='/media/sf_QWorld/QWorld/QA_DeNovoAsb/dwcloud.conf'
 
 client = Client.from_config(config_file, profile='aritra')
-solver = client.get_solver()
+solver = client.get_solver() # Available QPUs: DW_2000Q_2_1 (2038 qubits), DW_2000Q_5 (2030 qubits)
 
 edgelist = solver.edges
 
+adjdict = edgelist_to_adjacency(edgelist)
 # https://github.com/dwavesystems/dwave-system/blob/master/dwave/embedding/utils.py DOESNT WORK
-adjdict = dict()
-for u, v in edgelist:
-    if u in adjdict:
-        adjdict[u].add(v)
-    else:
-        adjdict[u] = {v}
-    if v in adjdict:
-        adjdict[v].add(u)
-    else:
-        adjdict[v] = {u}
+# adjdict = dict()
+# for u, v in edgelist:
+#     if u in adjdict:
+#         adjdict[u].add(v)
+#     else:
+#         adjdict[u] = {v}
+#     if v in adjdict:
+#         adjdict[v].add(u)
+#     else:
+#         adjdict[v] = {u}
 
 embed = minorminer.find_embedding(Jij.keys(),edgelist)
 [h_qpu, j_qpu] = embed_ising(hii, Jij, embed, adjdict)
 
 response_qpt = solver.sample_ising(h_qpu, j_qpu, num_reads=1)
-response_qpt.wait()
-# print(response_qpt.done())
+response_qpt.wait() # print(response_qpt.done())
 client.close()
-
-
-from dwave.embedding import unembed_sampleset
 
 res = response_qpt.result()
 # print(res)
-
 
 bqm = dimod.BinaryQuadraticModel.from_ising(hii, Jij)
 print(embed)
 
 variables = list(bqm) 
 print(variables)
+record = response_qpt.record
 chains = [embed[v] for v in variables]
 print(chains)
 
 # print(bqm)
 
-unembedded_res = unembed_sampleset(response_qpt, embed,bqm, chain_break_method ='majority_vote')
+# unembedded_res = unembed_sampleset(response_qpt, embed, bqm, chain_break_method ='majority_vote')
 # print(unembedded_res)
 
 	# for sam in range(len(res['samples'])):
