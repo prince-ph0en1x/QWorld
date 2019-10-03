@@ -1,5 +1,5 @@
 """
-Structure code
+Explore embedding
 """
 
 import numpy as np
@@ -16,6 +16,22 @@ from dwave.embedding import embed_ising, unembed_sampleset
 from dwave.embedding.utils import edgelist_to_adjacency
 from dwave.system.samplers import DWaveSampler
 from dwave.embedding.chain_breaks import majority_vote
+
+"""
+Read *.qubo file to form the QUBO model
+"""
+def quboFile_to_quboDict(filename):
+	f = open(filename, "r")
+	qubo_header = f.readline().split()
+	Q = {}
+	for i in range(0,int(qubo_header[4])):
+		x = f.readline().split()
+		Q[(x[0],x[1])] = float(x[2])	
+	for i in range(0,int(qubo_header[5])):
+		x = f.readline().split()
+		Q[(x[0],x[1])] = float(x[2])
+	f.close()
+	return Q
 
 """ 
 Overlap between pair-wise reads
@@ -100,12 +116,12 @@ def quboAdjM_to_quboDict(Q_matrix):
 """
 Solve a QUBO model using dimod exact solver
 """
-def solve_qubo_exact(Q):
+def solve_qubo_exact(Q, all = False):
 	solver = dimod.ExactSolver()
 	response = solver.sample_qubo(Q)
 	minE = min(response.data(['sample', 'energy']), key=lambda x: x[1])
 	for sample, energy in response.data(['sample', 'energy']): 
-		if energy == minE[1]:
+		if all or energy == minE[1]:
 			print(sample)
 
 """
@@ -173,14 +189,24 @@ def embed_qubo_chimera(Q_matrix, plotIt = False):
 		plt.show()
 
 """
-DE NOVO ASSEMBLY ON D-WAVE
+Solve de novo assembly on D-Wave annealer
 """
-reads = ['ATGGCGTGCA','GCGTGCAATG','TGCAATGGCG','AATGGCGTGC']
-tspAdjM = reads_to_tspAdjM(reads)
-quboAdjM = tspAdjM_to_quboAdjM(tspAdjM, -1.6, 1.6, 1.6) # self-bias, multi-location, repetation
-quboDict = quboAdjM_to_quboDict(quboAdjM)
-# solve_qubo_exact(quboDict)
-hii, Jij, offset = dimod.qubo_to_ising(quboDict)
-solve_ising_exact(hii,Jij)
-solve_ising_dwave(hii,Jij)
+def deNovo_on_DWave():
+	reads = ['ATGGCGTGCA','GCGTGCAATG','TGCAATGGCG','AATGGCGTGC']
+	tspAdjM = reads_to_tspAdjM(reads)
+	quboAdjM = tspAdjM_to_quboAdjM(tspAdjM, -1.6, 1.6, 1.6) # self-bias, multi-location, repetation
+	quboDict = quboAdjM_to_quboDict(quboAdjM)
+	hii, Jij, offset = dimod.qubo_to_ising(quboDict)
+	solve_ising_exact(hii,Jij)
+	solve_ising_dwave(hii,Jij)
+
+"""
+EXPERIMENTS
+"""
+
+# deNovo_on_DWave()
+
+quboDict = quboFile_to_quboDict("denovo_001.qubo")
+print(quboDict)
+solve_qubo_exact(quboDict, all=True)
 # embed_qubo_chimera(quboAdjM)
