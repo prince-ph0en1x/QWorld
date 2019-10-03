@@ -2,8 +2,39 @@
 Connect to D-Wave and solve De novo TSP
 """
 
+# Sample Run
 
+'''
+Minimum Energy Configurations	===>
+{'n0t0': -1, 'n0t1': -1, 'n0t2': 1, 'n0t3': -1, 'n1t0': -1, 'n1t1': -1, 'n1t2': -1, 'n1t3': 1, 'n2t0': 1, 'n2t1': -1, 'n2t2': -1, 'n2t3': -1, 'n3t0': -1, 'n3t1': 1, 'n3t2': -1, 'n3t3': -1} -30.41886116991591
+{'n0t0': -1, 'n0t1': -1, 'n0t2': -1, 'n0t3': 1, 'n1t0': 1, 'n1t1': -1, 'n1t2': -1, 'n1t3': -1, 'n2t0': -1, 'n2t1': 1, 'n2t2': -1, 'n2t3': -1, 'n3t0': -1, 'n3t1': -1, 'n3t2': 1, 'n3t3': -1} -30.41886116991591
+{'n0t0': 1, 'n0t1': -1, 'n0t2': -1, 'n0t3': -1, 'n1t0': -1, 'n1t1': 1, 'n1t2': -1, 'n1t3': -1, 'n2t0': -1, 'n2t1': -1, 'n2t2': 1, 'n2t3': -1, 'n3t0': -1, 'n3t1': -1, 'n3t2': -1, 'n3t3': 1} -30.41886116991591
+{'n0t0': -1, 'n0t1': 1, 'n0t2': -1, 'n0t3': -1, 'n1t0': -1, 'n1t1': -1, 'n1t2': 1, 'n1t3': -1, 'n2t0': -1, 'n2t1': -1, 'n2t2': -1, 'n2t3': 1, 'n3t0': 1, 'n3t1': -1, 'n3t2': -1, 'n3t3': -1} -30.41886116991591
 
+Maximum Sampled Configurations from D-Wave	===>
+([-1, -1, -1,  1, -1, -1, -1, -1,  1, -1, -1, -1, -1, -1,  1, -1], -27.9228825, 4562)
+([-1, -1,  1,  1, -1, -1, -1, -1,  1, -1, -1, -1,  1, -1, -1, -1], -22.70124548, 611)
+([-1, -1,  1,  1, -1, -1, -1, -1, -1,  1, -1, -1,  1, -1, -1, -1], -26.16476862, 481)
+([-1, -1,  1,  1, -1, -1, -1, -1,  1, -1, -1, -1,  1, -1, -1, -1], -22.70124548, 474)
+([-1, -1, -1,  1, -1, -1, -1, -1, -1,  1, -1, -1, -1, -1,  1, -1], -28.08099638, 470)
+([-1, -1, -1,  1, -1, -1, -1, -1,  1, -1, -1, -1, -1, -1,  1, -1], -27.9228825, 343)
+([ 1, -1, -1, -1, -1, -1, -1, -1, -1,  1, -1, -1, -1, -1,  1, -1], -27.81747324, 295)
+([-1, -1, -1,  1, -1, -1, -1, -1,  1, -1, -1, -1, -1, -1,  1, -1], -27.9228825, 259)
+([-1, -1, -1,  1, -1, -1, -1, -1, -1, -1,  1, -1,  1, -1, -1, -1], -27.60665473, 200)
+([-1, -1, -1,  1, -1, -1, -1, -1, -1, -1,  1, -1,  1, -1, -1, -1], -27.60665473, 187)
+
+Minimum Energy Configurations from D-Wave	===>
+([-1, -1,  1, -1, -1, -1, -1,  1,  1, -1, -1, -1, -1,  1, -1, -1], -30.41886117, 26)
+([-1, -1,  1, -1, -1, -1, -1,  1,  1, -1, -1, -1, -1,  1, -1, -1], -30.41886117, 2)
+([-1, -1,  1, -1, -1, -1, -1,  1,  1, -1, -1, -1, -1,  1, -1, -1], -30.41886117, 2)
+([-1, -1, -1,  1,  1, -1, -1, -1, -1,  1, -1, -1, -1, -1,  1, -1], -30.41886117, 29)
+([-1, -1, -1,  1,  1, -1, -1, -1, -1,  1, -1, -1, -1, -1,  1, -1], -30.41886117, 1)
+([-1, -1, -1,  1,  1, -1, -1, -1, -1,  1, -1, -1, -1, -1,  1, -1], -30.41886117, 7)
+([-1, -1,  1, -1, -1, -1, -1,  1,  1, -1, -1, -1, -1,  1, -1, -1], -30.41886117, 1)
+([-1, -1, -1,  1, -1,  1, -1, -1,  1, -1, -1, -1, -1, -1,  1, -1], -29.89181489, 23)
+([ 1, -1, -1, -1, -1, -1,  1, -1, -1, -1, -1,  1, -1,  1, -1, -1], -29.89181489, 5)
+([-1, -1, -1,  1, -1,  1, -1, -1,  1, -1, -1, -1, -1, -1,  1, -1], -29.89181489, 3)
+'''
 
 import numpy as np
 import dimod
@@ -11,6 +42,7 @@ import matplotlib.pyplot as plt
 import dwave_networkx as dnx
 import networkx as nx
 import minorminer
+import sys 
 
 """
 Reads to TSP graph
@@ -42,6 +74,7 @@ for r1 in range(0,n_reads):
 	for r2 in range(0,n_reads):
 		if r1!=r2:
 			O_matrix[r1][r2] = pwalign(reads[r1],reads[r2],allowed_mismatched) # edge directivity = (row id, col id)
+O_matrix = O_matrix / np.linalg.norm(O_matrix)
 # print(O_matrix)
 
 """
@@ -54,12 +87,12 @@ TSP Graph to Q-Matrix
 Q_matrix = np.zeros((n_reads**2,n_reads**2))
 
 # Assignment reward (self-bias)
-p0 = 0
+p0 = -1.6
 for ct in range(0,n_reads**2):
 	Q_matrix[ct][ct] += p0
 
 # Multi-location penalty
-p1 = 4 # fixed emperically by trail-and-error
+p1 = -p0 # fixed emperically by trail-and-error
 for c in range(0,n_reads):
 	for t1 in range(0,n_reads):
 		for t2 in range(0,n_reads):
@@ -111,13 +144,13 @@ Solve the Ising using dimod exact solver
 
 hii, Jij, offset = dimod.qubo_to_ising(Q)
 
-# response = solver.sample_ising(hii,Jij)
-# # print()
-# minE = min(response.data(['sample', 'energy']), key=lambda x: x[1])
-# for sample, energy in response.data(['sample', 'energy']): 
-# 	if energy == minE[1]:
-# 		print(sample,energy)
-
+response = solver.sample_ising(hii,Jij)
+print("Minimum Energy Configurations\t===>")
+minE = min(response.data(['sample', 'energy']), key=lambda x: x[1])
+for sample, energy in response.data(['sample', 'energy']): 
+	if energy == minE[1]:
+		print(sample,energy)
+# sys.exit()
 # y = []
 # for sample, energy in response.data(['sample', 'energy']): y.append(energy)
 # plt.plot(y)
@@ -129,83 +162,50 @@ hii, Jij, offset = dimod.qubo_to_ising(Q)
 Embed the QUBO graph in Chimera graph
 """
 
-connectivity_structure = dnx.chimera_graph(3,3) # try to minimize
-G = nx.from_numpy_matrix(Q_matrix)
+# connectivity_structure = dnx.chimera_graph(3,3) # try to minimize
+# G = nx.from_numpy_matrix(Q_matrix)
 
-max_chain_length = 0
-while(max_chain_length == 0):
-	embedded_graph = minorminer.find_embedding(G.edges(), connectivity_structure)
-	for _, chain in embedded_graph.items():
-	    if len(chain) > max_chain_length:
-	        max_chain_length = len(chain)
+# max_chain_length = 0
+# while(max_chain_length == 0):
+# 	embedded_graph = minorminer.find_embedding(G.edges(), connectivity_structure)
+# 	for _, chain in embedded_graph.items():
+# 	    if len(chain) > max_chain_length:
+# 	        max_chain_length = len(chain)
 # Display maximum chain length and Chimera embedding
-print("max_chain_length",max_chain_length) # try to minimize
+# print("max_chain_length",max_chain_length) # try to minimize
 # dnx.draw_chimera_embedding(connectivity_structure, embedded_graph)
 # plt.show()
-
-
-"""
-TRY
-"""
-
-
-
-
 
 """
 Solve the embedded Ising using D-Wave solver
 """
 
-import random
 from dwave.cloud import Client
 from dwave.embedding import embed_ising, unembed_sampleset #, edgelist_to_adjacency
 from dwave.embedding.utils import edgelist_to_adjacency
+from dwave.system.samplers import DWaveSampler
+from dwave.embedding.chain_breaks import majority_vote
 
 config_file='/media/sf_QWorld/QWorld/QA_DeNovoAsb/dwcloud.conf'
-
 client = Client.from_config(config_file, profile='aritra')
 solver = client.get_solver() # Available QPUs: DW_2000Q_2_1 (2038 qubits), DW_2000Q_5 (2030 qubits)
+dwsampler = DWaveSampler(config_file=config_file)
 
 edgelist = solver.edges
-
 adjdict = edgelist_to_adjacency(edgelist)
-# https://github.com/dwavesystems/dwave-system/blob/master/dwave/embedding/utils.py DOESNT WORK
-# adjdict = dict()
-# for u, v in edgelist:
-#     if u in adjdict:
-#         adjdict[u].add(v)
-#     else:
-#         adjdict[u] = {v}
-#     if v in adjdict:
-#         adjdict[v].add(u)
-#     else:
-#         adjdict[v] = {u}
-
 embed = minorminer.find_embedding(Jij.keys(),edgelist)
 [h_qpu, j_qpu] = embed_ising(hii, Jij, embed, adjdict)
 
-response_qpt = solver.sample_ising(h_qpu, j_qpu, num_reads=1)
-response_qpt.wait() # print(response_qpt.done())
+response_qpt = dwsampler.sample_ising(h_qpu, j_qpu, num_reads=solver.max_num_reads())
 client.close()
 
-res = response_qpt.result()
-# print(res)
-
 bqm = dimod.BinaryQuadraticModel.from_ising(hii, Jij)
-print(embed)
-
-variables = list(bqm) 
-print(variables)
-record = response_qpt.record
-chains = [embed[v] for v in variables]
-print(chains)
-
-# print(bqm)
-
-# unembedded_res = unembed_sampleset(response_qpt, embed, bqm, chain_break_method ='majority_vote')
-# print(unembedded_res)
-
-	# for sam in range(len(res['samples'])):
-	# 	print((res['samples'][sam][u],res['samples'][sam][v],res['energies'][sam],res['occurrences'][sam]))
-
-	# response_qpt.cancel()
+unembedded = unembed_sampleset(response_qpt, embed, bqm, chain_break_method=majority_vote)
+print("Maximum Sampled Configurations from D-Wave\t===>")
+solnsMaxSample = sorted(unembedded.record,key=lambda x: -x[2])
+for i in range(0,10):
+	print(solnsMaxSample[i])
+print("Minimum Energy Configurations from D-Wave\t===>")
+solnsMinEnergy = sorted(unembedded.record,key=lambda x: +x[1])
+for i in range(0,10):
+	print(solnsMinEnergy[i])
