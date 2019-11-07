@@ -9,8 +9,14 @@ Welcome to QWorld's documentation!
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
-
-
+   installation
+   usage
+   theory
+   contributing
+   authors
+   history
+   roadmap
+   modules
 
 Indices and tables
 ==================
