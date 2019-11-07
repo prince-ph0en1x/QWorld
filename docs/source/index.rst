@@ -6,15 +6,24 @@
 Welcome to QWorld's documentation!
 ==================================
 
+Another header
+==============
+
+here is some text::
+
+    print>>"hi"
+
+Guide
+^^^^^
+
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+
    authors
 
 Indices and tables
 ==================
 
-* :ref:`authors`
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
