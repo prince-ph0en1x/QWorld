@@ -14,6 +14,13 @@ Welcome to QWorld's documentation!
 Indices and tables
 ==================
 
+Hello
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Contents:
+   authors
+
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
