@@ -2,8 +2,8 @@
 Authors
 =======
 
-Core Team (QWorld Development Team)
-------------------------------------
+Core Development Team
+---------------------
 
 * Aritra Sarkar (focal point) <a.sarkar-3@tudelft.nl>
 * Alberto Gonzalez Tellez
