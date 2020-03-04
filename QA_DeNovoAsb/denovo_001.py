@@ -21,7 +21,7 @@ Expected output:
 import dimod
 solver = dimod.ExactSolver()
 
-f = open("denovo_001.qubo", "r")
+f = open("denovo_001_paper.qubo", "r")
 qubo_header = f.readline().split()
 hii = {}
 Jij = {}

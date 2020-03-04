@@ -1,238 +1,27 @@
-# TSP QAOA
-# ..:$ python3 code_004.py 
-
 import networkx as nx
 import math
 import numpy as np
-from scipy.optimize import minimize
-from qxelarator import qxelarator
-import matplotlib.pyplot as plt
-import re
-
-######################################################
-
-ptrn = re.compile('\(([+-]\d+.*\d*),([+-]\d+.*\d*)\)\s[|]([0-1]*)>') # Regular expression to extract the amplitudes from the string returned by get_state()
-isv_prob = True # True if the internal state vector is accessed using get_state() instead of measurement aggregates over multiple shots
-shots = 500 # If isv_prob is false, the experiment is run over multple shots for measurement aggregate. Should be some factor of number of qubits to have the same precision
-
-track_opt = []
-track_optstep = 0
-track_probs = []
-
-class QAOA(object):
-
-    def __init__(self, maxiter):
-        self.qx = qxelarator.QX()
-        self.minimizer = minimize
-        self.minimizer_kwargs = {'method':'Nelder-Mead', 'options':{'maxiter':maxiter, 
-                                 'ftol':1.0e-6, 'xtol':1.0e-6, 'disp':True, 'return_all':True}}
-        self.p_name = "test_output/qaoa_run.qasm"
-        self.expt = 0    
-    
-    def qaoa_run(self, wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas):
-        n_qubits = len(list(wsopp.keys())[0])
-        pqasm = []
-        coeffs = []
-        ang_nos = []
-        params = []
-        for gate in initstate:
-            pqasm.append(gate)
-        for p in range(0,steps):
-            for gate in ansatz:
-                pqasm.append(gate)
-            coeffs = np.hstack((coeffs,cfs))
-            ang_nos = np.hstack((ang_nos,aid))
-            params.append(init_gammas[p])
-            params.append(init_betas[p]) 
-
-        def qasmify(params, wpp):
-            global isv_prob
-            prog = open(self.p_name,"w")
-            prog.write("# De-parameterized QAOA ansatz\n")
-            prog.write("version 1.0\n")
-            prog.write("qubits "+str(n_qubits)+"\n")
-            
-            prog.write(".qk(1)\n")
-            
-            # De-parameterize pqasm
-            a_id = 0
-            a_ctr = 0
-            c_ctr = 0
-            for i in pqasm:
-                # 1-qubit parametric gates
-                if i[0] == 'rx' or i[0] == 'ry' or i[0] == 'rz':
-                    prog.write(i[0]+" q["+str(i[1])+"],"+str(coeffs[c_ctr]*params[a_id])+"\n")
-                    c_ctr += 1
-                    a_ctr += 1
-                    if a_ctr >= ang_nos[a_id]:
-                        a_id += 1
-                        a_ctr = 0
-                # 1-qubit discrete gates
-                elif i[0] == 'x' or i[0] == 'y' or i[0] == 'z' or i[0] == 'h':
-                    prog.write(i[0]+" q["+str(i[1])+"]\n")
-                # 2-qubit discrete gates
-                else:
-                    prog.write(i[0]+" q["+str(i[1][0])+"],q["+str(i[1][1])+"]\n")
-            
-            # Pre-rotation for Z-basis measurement
-            tgt = n_qubits-1
-            for pt in wpp:
-                if pt == "X":
-                    prog.write("ry q"+str(tgt)+",1.5708\n")
-                elif pt == "Y":
-                    prog.write("rx q"+str(tgt)+",-1.5708\n")
-                # else Z or Identity
-                tgt -= 1
-
-            # Measure all
-            if not isv_prob:
-                for i in range(n_qubits):
-                    prog.write("measure q["+str(i)+"]\n")
-
-            prog.close()        
-
-        def expectation(params):
-            E = 0
-            self.expt = 0
-            xsgn = [-1,1] # Try [1,-1] with ry +pi/2 in qasmify for pt == 'X'
-            zsgn = [1,-1]
-            isgn = [1,-1]
-            global track_probs
-            track_probs = np.zeros(2**n_qubits)
-
-            for wpp in wsopp:
-                qasmify(params,wpp)
-                self.qx.set(self.p_name)
-
-                Epp = 0
-                p = np.zeros(2**n_qubits)
-                c = np.zeros(n_qubits,dtype=bool)
-                for i in range(shots):
-                    self.qx.execute()
-                    # self.qx.execute(1)
-                    for i in range(n_qubits):
-                        c[i] = self.qx.get_measurement_outcome(i)
-                    idx = sum(v<<i for i, v in enumerate(c[::-1]))    
-                    p[idx] += 1/shots
-
-                psgn = [1]
-                for pt in wpp:
-                    if pt == "X":
-                        psgn = np.kron(psgn,xsgn)
-                    #elif pt == "Y":
-                    #    psgn = np.kron(psgn,xsgn) # TBD
-                    elif pt == "Z":
-                        psgn = np.kron(psgn,zsgn)
-                    else: # Identity
-                        psgn = np.kron(psgn,isgn)
-                for pn in range(2**n_qubits):
-                    Epp += psgn[pn]*p[pn]                
-                E += wsopp[wpp]*Epp
-                self.expt += E
-
-                if wpp == "I"*n_qubits:
-                    track_probs = p
-
-            return E
-
-        def expectation_isv(params):
-            global ptrn
-            E = 0
-            self.expt = 0
-            xsgn = [-1,1] # Try [1,-1] with ry +pi/2 in qasmify for pt == 'X'
-            zsgn = [1,-1]
-            isgn = [1,-1]
-            global track_probs
-            track_probs = np.zeros(2**n_qubits)
-
-            for wpp in wsopp:
-                qasmify(params,wpp)
-                self.qx.set(self.p_name)
-
-                Epp = 0
-                p = np.zeros(2**n_qubits)
-                self.qx.execute() 
-                isv_str = self.qx.get_state()
-                isv = re.findall(ptrn,isv_str)
-                for basis in iter(isv):
-                    p[int(basis[2],2)] = float(basis[0])**2 + float(basis[1])**2 # Probability is square of modulus of complex amplitude
-                
-                psgn = [1]
-                for pt in wpp:
-                    if pt == "X":
-                        psgn = np.kron(psgn,xsgn)
-                    #elif pt == "Y":
-                    #    psgn = np.kron(psgn,xsgn) # TBD
-                    elif pt == "Z":
-                        psgn = np.kron(psgn,zsgn)
-                    else: # Identity
-                        psgn = np.kron(psgn,isgn)
-                for pn in range(2**n_qubits):
-                    Epp += psgn[pn]*p[pn]                
-                E += wsopp[wpp]*Epp
-                self.expt += E
-
-                if wpp == "I"*n_qubits:
-                    track_probs = p
-               
-            return E
-
-        def intermediate(cb):
-            global track_opt
-            global track_optstep
-            global track_probs
-            print("Step: ",track_optstep)
-            # print("Current Optimal Parameters: ",cb)
-            # print("Current Expectation Value: ",self.expt)
-            # print("Current Optimal Probabilities: ",track_probs)
-            track_optstep += 1
-            # input("Press Enter to continue to step "+str(track_optstep))
-            track_opt.append([track_optstep, cb, track_probs])
-               
-        args = [expectation_isv, params]
-        r = self.minimizer(*args, callback=intermediate, **self.minimizer_kwargs) 
-        return r
-
+# import matplotlib.pyplot as plt
 ######################################################
 
 """
-Defines the city graph for TSP
+Defines the city graph for TSP: DNA example in paper
 """
-
-# 4 cities undirected complete-graph in unit square lattice
-
-#   0----1
-#   |\  /|
-#   | \/ |
-#   | /\ |
-#   |/  \|
-#   3----2
-
-# def graph_problem():
-#     g = nx.Graph()
-#     g.add_edge(0,1,weight=1)
-#     g.add_edge(0,2,weight=math.sqrt(2))
-#     g.add_edge(0,3,weight=1)
-#     g.add_edge(1,2,weight=1)
-#     g.add_edge(1,3,weight=math.sqrt(2))
-#     g.add_edge(2,3,weight=1)
-#     return g
-
-# 3 cities unit distance undirected complete-graph
-
-#       0
-#      / \
-#     /   \
-#    /     \
-#   2-------1
-
 def graph_problem():
-    g = nx.Graph()
-    g.add_edge(0,1,weight=1)
-    g.add_edge(0,2,weight=1)
-    g.add_edge(1,2,weight=1)
+    g = nx.DiGraph()
+    g.add_edge(0,1,weight=-7)
+    g.add_edge(1,2,weight=-7)
+    g.add_edge(2,3,weight=-7)
+    g.add_edge(3,0,weight=-9)
+    g.add_edge(1,0,weight=-3)
+    g.add_edge(2,1,weight=-3)
+    g.add_edge(3,2,weight=-3)
+    g.add_edge(0,3,weight=-1)
+    g.add_edge(0,2,weight=-4)
+    g.add_edge(1,3,weight=-4)
+    g.add_edge(2,0,weight=-6)
+    g.add_edge(3,1,weight=-6)
     return g
-
 g = graph_problem()
 
 ######################################################
@@ -250,7 +39,7 @@ def graph_to_wsopp_tsp(g):
     n_qubits = n_cities*n_timeslots # MSQ = C0T0, LSQ = C3T3
     Iall = "I"*n_qubits
     
-    penalty = 1e5 # How to set this?
+    penalty = 1e1 # How to set this?
     shift = 2*penalty*n_cities   # What is this?
     
     # penalty: CiTp --> CiTp
@@ -275,6 +64,7 @@ def graph_to_wsopp_tsp(g):
             for j in range(i):
                 shift += penalty / 2
 
+                
                 sopp = Iall[:(i*n_cities+p)]+"Z"+Iall[(i*n_cities+p)+1:]
                 if sopp in wsopp:
                     wsopp[sopp] = wsopp[sopp] + (-penalty/2)
@@ -292,7 +82,7 @@ def graph_to_wsopp_tsp(g):
                     wsopp[sopp] = wsopp[sopp] + (penalty/2)
                 else:
                     wsopp[sopp] = (penalty/2)    
-
+              
     # -0.5*penalty: CiTp --> CiTp
     # -0.5*penalty: CiTq --> CiTq
     # +0.5*penalty: CiTp --> CiTq
@@ -330,24 +120,28 @@ def graph_to_wsopp_tsp(g):
                 q = (p + 1) % n_timeslots
                 dist = g.get_edge_data(i,j)['weight']
                 shift += dist / 4
+                # print(i,j,p,q)
 
                 sopp = Iall[:(i*n_cities+p)]+"Z"+Iall[(i*n_cities+p)+1:]
+                # print(sopp,-dist/4)
                 if sopp in wsopp:
                     wsopp[sopp] = wsopp[sopp] + (-dist/4)
                 else:
                     wsopp[sopp] = (-dist/4)
 
                 sopp = Iall[:(j*n_cities+q)]+"Z"+Iall[(j*n_cities+q)+1:]
+                # print(sopp,-dist/4)
                 if sopp in wsopp:
                     wsopp[sopp] = wsopp[sopp] + (-dist/4)
                 else:
                     wsopp[sopp] = (-dist/4)
 
                 sopp = sopp[:(i*n_cities+p)]+"Z"+sopp[(i*n_cities+p)+1:] # Both ip,jq
+                # print(sopp,dist/4)
                 if sopp in wsopp:
                     wsopp[sopp] = wsopp[sopp] + (dist/4)
                 else:
-                    wsopp[sopp] = (dist/4)
+                    wsopp[sopp] = (dist/4) 
        
     return shift, wsopp
 
@@ -357,7 +151,7 @@ shift, wsopp = graph_to_wsopp_tsp(g)
 # for i in wsopp:
 #     print(i,wsopp[i]) 
 
-######################################################
+#####################################################
 
 initstate = []
 for i in range(0,len(g.nodes())): # Reference state preparation
@@ -427,21 +221,28 @@ init_betas = np.random.uniform(0, 2*np.pi, steps)
 
 maxiter = 1
 
-PRINT("HELLO")
+from QAOA import QAOA, track_opt
+print(init_gammas, init_betas)
 qaoa_obj = QAOA(maxiter)
-# res = qaoa_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
+for i in range(0,len(wsopp)):
+    print("#",end="")
+print()#, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
+res = qaoa_obj.qaoa_run(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
 # print(res.status, res.fun, res.x)
-print(QAOA.track_opt[-1])
-# print(sum(track_opt[0][2]))
-# # %matplotlib inline
-# plt.ylim((0,1))
-# plt.plot(track_opt[0][2],'--') # Initial
-# plt.plot(track_opt[-1][2]) # Final
-# plt.show()
+# res = qaoa_obj.qaoa_test(wsopp, initstate, ansatz, cfs, aid, steps, init_gammas, init_betas)
+# print(res)
+print(track_opt[-1])
+# # print(track_opt[-1])
+# # print(sum(track_opt[0][2]))
+# # # %matplotlib inline
+# # plt.ylim((0,1))
+# # plt.plot(track_opt[0][2],'--') # Initial
+# # plt.plot(track_opt[-1][2]) # Final
+# # plt.show()
 
 
 
-######################################################
+# ######################################################
 
 # from pyquil.paulis import *
 # # from pyquil.gates import *
@@ -558,39 +359,3 @@ print(QAOA.track_opt[-1])
 
 
 
-
-
-
-######################################################
-
-# from scipy import sparse
-
-# def paulis_to_matrix(pl):
-#     """
-#     Convert paulis to matrix, and save it in internal property directly.
-#     If all paulis are Z or I (identity), convert to dia_matrix.
-#     """
-#     p = pl[0]
-#     hamiltonian = p[0] * to_spmatrix(p[1])
-#     for idx in range(1, len(pl)):
-#         p = pl[idx]
-#         hamiltonian += p[0] * to_spmatrix(p[1])
-#     return hamiltonian
-
-# def to_spmatrix(p):
-#     """
-#     Convert Pauli to a sparse matrix representation (CSR format).
-#     Order is q_{n-1} .... q_0, i.e., $P_{n-1} \otimes ... P_0$
-#     Returns:
-#         scipy.sparse.csr_matrix: a sparse matrix with CSR format that
-#         represnets the pauli.
-#     """
-#     mat = sparse.coo_matrix(1)
-#     for z in p:
-#         if not z:  # I
-#             mat = sparse.bmat([[mat, None], [None, mat]], format='coo')
-#         else:  # Z
-#             mat = sparse.bmat([[mat, None], [None, -mat]], format='coo')
-#     return mat.tocsr()
-
-######################################################
