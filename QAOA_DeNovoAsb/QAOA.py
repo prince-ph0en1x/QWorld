@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.optimize import minimize
-from qxelarator import qxelarator
+import qxelarator
 import re
 import time
 
